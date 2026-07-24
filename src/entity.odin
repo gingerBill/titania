@@ -47,4 +47,7 @@ Entity :: struct {
 	import_scope: ^Scope,
 	value:  Const_Value,
 	builtin_id: Builtin_Id,
+
+	backend_offset: i32,
+	backend_global: bool,
 }

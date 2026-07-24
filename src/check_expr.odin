@@ -4,15 +4,6 @@ import "core:fmt"
 import "core:strconv"
 import "core:mem/virtual"
 
-check_is_boolean :: proc(c: ^Checker_Context, o: ^Operand) {
-	assert(o.type != nil)
-	if o.type.kind != .Bool {
-		if o.expr != nil {
-			error(c, o.expr.pos, "expected a boolean expression")
-		}
-	}
-}
-
 check_is_integer :: proc(c: ^Checker_Context, o: ^Operand) {
 	assert(o.type != nil)
 
@@ -27,7 +18,6 @@ check_is_integer :: proc(c: ^Checker_Context, o: ^Operand) {
 		error(c, o.expr.pos, "expected an integer-like expression")
 	}
 }
-
 
 
 assign_entity_to_operand :: proc(c: ^Checker_Context, e: ^Entity, o: ^Operand, expr: ^Ast_Expr) {
@@ -551,14 +541,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 	}
 }
 
-type_assert2 :: proc(lhs, rhs: $V, $T: typeid) -> (T, T, bool) {
-	x, x_ok := lhs.(T)
-	y, y_ok := rhs.(T)
-	return x, y, x_ok & y_ok
-}
-
 check_const_binary_expr :: proc(c: ^Checker_Context, lhs: Const_Value, op: Token_Kind, rhs: Const_Value) -> (res: Const_Value) {
-
 	if x, y, ok := type_assert2(lhs, rhs, i64); ok {
 		#partial switch op {
 		case .Add: return x + y
@@ -575,9 +558,7 @@ check_const_binary_expr :: proc(c: ^Checker_Context, lhs: Const_Value, op: Token
 		case .Greater_Than:       return x > y
 		case .Greater_Than_Equal: return x >= y
 		}
-	}
-
-	if x, y, ok := type_assert2(lhs, rhs, f64); ok {
+	} else if x, y, ok := type_assert2(lhs, rhs, f64); ok {
 		#partial switch op {
 		case .Add: return x + y
 		case .Sub: return x - y
@@ -591,9 +572,7 @@ check_const_binary_expr :: proc(c: ^Checker_Context, lhs: Const_Value, op: Token
 		case .Greater_Than:       return x > y
 		case .Greater_Than_Equal: return x >= y
 		}
-	}
-
-	if x, y, ok := type_assert2(lhs, rhs, bool); ok {
+	} else if x, y, ok := type_assert2(lhs, rhs, bool); ok {
 		#partial switch op {
 		case .Equal:     return x == y
 		case .Not_Equal: return x != y
@@ -601,9 +580,13 @@ check_const_binary_expr :: proc(c: ^Checker_Context, lhs: Const_Value, op: Token
 		case .Or:        return x | y
 		case .Xor:       return x ~ y
 		}
-	}
-
-	if x, y, ok := type_assert2(lhs, rhs, string); ok {
+	} else if x, y, ok := type_assert2(lhs, rhs, string); ok {
+		if op == .Add {
+			z, _ := virtual.make_slice(c.arena, []byte, len(x)+len(y))
+			copy(z, x)
+			copy(z[len(x):], y)
+			return string(z)
+		}
 		return nil
 	}
 

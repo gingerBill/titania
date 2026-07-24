@@ -42,6 +42,7 @@ check_var_decl :: proc(c: ^Checker_Context, decl: ^Ast_Var_Decl) {
 			continue
 		}
 		e := entity_new(c.arena, .Var, vname, type, c.scope)
+		name.entity = e
 		scope_insert_entity(c.scope, e)
 	}
 }
@@ -54,6 +55,7 @@ check_proc_decl :: proc(c: ^Checker_Context, decl: ^Ast_Proc_Decl) {
 	name := decl.name.tok.text
 	entity := entity_new(c.arena, .Proc, name, t_invalid, c.scope)
 	entity.decl = decl
+	decl.name.entity = entity
 	scope_insert_entity(c.scope, entity)
 
 	scope_push(c)

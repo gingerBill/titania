@@ -226,3 +226,10 @@ check_module :: proc(info: ^Checker_Info, m: ^Module) {
 	}
 }
 
+
+
+type_assert2 :: proc(lhs, rhs: $V, $T: typeid) -> (T, T, bool) {
+	x, x_ok := lhs.(T)
+	y, y_ok := rhs.(T)
+	return x, y, x_ok & y_ok
+}

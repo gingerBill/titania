@@ -24,4 +24,13 @@ main :: proc() {
 	checker_info_init(&info)
 
 	check_module(&info, &module)
+
+	if module.error_count != 0 {
+		return
+	}
+
+	out_exe_path := "out.exe"
+	if generate(&module, out_exe_path) {
+		fmt.println("wrote", out_exe_path)
+	}
 }

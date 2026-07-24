@@ -17,9 +17,9 @@ Parser :: struct {
 parser_init :: proc(p: ^Parser, filename: string) -> bool {
 	p^ = {}
 
-	data, ok := os.read_entire_file(filename)
-	if !ok {
-		fmt.println("Failed to read file: ", filename)
+	data, err := os.read_entire_file(filename, context.allocator)
+	if err != nil {
+		fmt.println("Failed to read file: ", filename, "with error", err)
 		return false
 	}
 

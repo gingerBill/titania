@@ -2,6 +2,14 @@ package titania
 
 import "core:fmt"
 
+check_is_boolean :: proc(c: ^Checker_Context, o: ^Operand) {
+	assert(o.type != nil)
+	if o.type.kind != .Bool {
+		if o.expr != nil {
+			error(c, o.expr.pos, "expected a boolean expression")
+		}
+	}
+}
 
 @(require_results)
 check_is_entity_addressable :: proc(c: ^Checker_Context, e: ^Entity) -> bool {
@@ -57,6 +65,7 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 	case ^Ast_For_Stmt:
 		name := s.name.tok.text
 		entity, ok := scope_lookup(c.scope, name)
+		s.name.entity = entity
 		if !ok {
 			error(c, s.name.pos, "'%s' has not been declared", name)
 		} else if !check_is_entity_addressable(c, entity) {
