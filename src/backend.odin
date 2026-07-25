@@ -151,7 +151,11 @@ gen_entity_addr :: proc(ent: ^Entity, pos: Pos) {
 		push_r(x86.RAX)
 		return
 	}
-	if ent.backend_global {
+	if .By_Var in ent.flags {
+		// A var (by-reference) parameter's slot holds a pointer to the caller's
+		// storage, so that pointer *is* the entity's address.
+		emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_disp(x86.RBP, -ent.backend_offset), 8))
+	} else if ent.backend_global {
 		mov_ri(x86.RAX, i64(g.global_base + u64(ent.backend_offset)))
 	} else {
 		emit(x86.inst_r_m(.LEA, x86.RAX, x86.mem_base_disp(x86.RBP, -ent.backend_offset), 8))
@@ -263,7 +267,11 @@ aligned_call_ptr :: proc(ptr_reg: x86.Register) {
 }
 
 load_var_rax :: proc(e: ^Entity) {
-	if e.backend_global {
+	if .By_Var in e.flags {
+		// slot holds a pointer to the caller's storage: load it, then dereference.
+		emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_disp(x86.RBP, -e.backend_offset), 8))
+		emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_only(x86.RAX), 8))
+	} else if e.backend_global {
 		mov_ri(x86.RAX, i64(g.global_base + u64(e.backend_offset)))
 		emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_only(x86.RAX), 8))
 	} else {
@@ -272,7 +280,11 @@ load_var_rax :: proc(e: ^Entity) {
 }
 
 store_var_rax :: proc(e: ^Entity) {
-	if e.backend_global {
+	if .By_Var in e.flags {
+		// slot holds a pointer to the caller's storage: load it, then store through it.
+		emit(x86.inst_r_m(.MOV, x86.RCX, x86.mem_base_disp(x86.RBP, -e.backend_offset), 8))
+		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
+	} else if e.backend_global {
 		mov_ri(x86.RCX, i64(g.global_base + u64(e.backend_offset)))
 		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
 	} else {
@@ -502,6 +514,11 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 
 	gen_expr(v)
 
+	// gen_type_conv leaves the converted value on the stack, but gen_call's
+	// contract is to leave the result in RAX (the caller pushes it). Pop it
+	// so a type conversion behaves like every other call kind.
+	defer pop_r(x86.RAX)
+
 	if v.type.kind == target_kind  {
 		return true
 	}
@@ -608,8 +625,16 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 			mov_ri(x86.RAX, 0)
 			return
 		}
-		for p in v.parameters {
-			gen_expr(p)
+		params: []^Entity
+		if pt, ok := ent.type.variant.(^Type_Proc); ok {
+			params = pt.parameters
+		}
+		for p, i in v.parameters {
+			if i < len(params) && .By_Var in params[i].flags {
+				gen_addr(p) // var (by-reference) parameter: pass the address
+			} else {
+				gen_expr(p) // value parameter: pass the value
+			}
 		}
 		for i := n - 1; i >= 0; i -= 1 {
 			pop_r(ARG_REGS[i])
@@ -656,13 +681,20 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		mov_ri(x86.RAX, 0)
 
 	case .abs:
-		// abs(x) = (x < 0) ? -x : x, branchless.
-		gen_expr(v.parameters[0])
+		p := v.parameters[0]
+		gen_expr(p)
 		pop_r(x86.RAX)
-		emit(x86.inst_r_r(.MOV, x86.RCX, x86.RAX))
-		emit(x86.inst_r(.NEG, x86.RCX))
-		emit(x86.inst_r_r(.TEST, x86.RAX, x86.RAX))
-		emit(x86.inst_r_r(.CMOVL, x86.RAX, x86.RCX))
+		if is_real(p.type) {
+			// clear the IEEE-754 sign bit
+			mov_ri(x86.RCX, transmute(i64)u64(0x7fffffffffffffff))
+			emit(x86.inst_r_r(.AND, x86.RAX, x86.RCX))
+		} else {
+			// abs(x) = (x < 0) ? -x : x, branchless.
+			emit(x86.inst_r_r(.MOV, x86.RCX, x86.RAX))
+			emit(x86.inst_r(.NEG, x86.RCX))
+			emit(x86.inst_r_r(.TEST, x86.RAX, x86.RAX))
+			emit(x86.inst_r_r(.CMOVL, x86.RAX, x86.RCX))
+		}
 
 	case .odd:
 		gen_expr(v.parameters[0])
