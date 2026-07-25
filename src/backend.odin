@@ -801,9 +801,9 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		x := v.parameters[0]
 		n := v.parameters[1]
 		gen_expr(x)
-		pop_xmm(x86.XMM0)             // XMM0 = x
-		gen_expr(n)
+		gen_expr(n)                  // evaluate both before touching volatile regs
 		pop_r(x86.RDX)               // RDX/EDX = n (2nd arg slot)
+		pop_xmm(x86.XMM0)            // XMM0 = x
 		mov_ri(x86.RAX, i64(g.imp.funcs[.ldexp]))
 		aligned_call_ptr(x86.RAX)    // XMM0 = x * 2^n
 		gen_addr(x)
@@ -827,20 +827,22 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		emit(x86.inst_r_r(.ADDSD, x86.XMM0, x86.XMM0)) // mantissa *= 2 -> [1,2)
 		emit(x86.inst_r_i(.SUB, x86.RCX, 1, 4))        // exp -= 1
 		emit(x86.inst_r_i(.ADD, x86.RSP, 16, 4))       // free scratch
+		// stash results on the stack so gen_addr (which may emit a call) can't clobber them
+		emit(x86.inst_r_r(.MOVQ, x86.RAX, x86.XMM0))   // mantissa bits
+		push_r(x86.RAX)            // [mantissa]
+		push_r(x86.RCX)            // [mantissa, exp]
 		// n := exp
-		push_r(x86.RCX)
 		gen_addr(n)
 		pop_r(x86.RAX)             // &n
 		pop_r(x86.RCX)             // exp
 		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RAX), 8, x86.RCX))
 		// x := mantissa
-		emit(x86.inst_r_r(.MOVQ, x86.RAX, x86.XMM0))
-		push_r(x86.RAX)
 		gen_addr(x)
 		pop_r(x86.RCX)             // &x
 		pop_r(x86.RAX)             // mantissa bits
 		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
 		mov_ri(x86.RAX, 0)
+
 	case .Invalid:
 		fallthrough
 	case:
@@ -971,9 +973,9 @@ gen_for :: proc(v: ^Ast_For_Stmt) {
 	top := new_label()
 	end := fwd_label()
 
-	load_var_rax(e)
-	gen_expr(v.hi_cond)
-	pop_r(x86.RCX)
+	gen_expr(v.hi_cond) // evaluate the bound first (it may use RAX or emit a call)
+	load_var_rax(e)     // then load the loop variable
+	pop_r(x86.RCX)      // RCX = hi
 	emit(x86.inst_r_r(.CMP, x86.RAX, x86.RCX))
 	emit(x86.inst_rel(.JG, end, 4)) // assumes a positive step
 
