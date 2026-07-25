@@ -647,22 +647,22 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 			is_last := id == .println && i == last
 			gen_expr(p)
 			pop_r(x86.RDX) // 2nd printf arg (MS varargs: also the GPR half)
-			addr := g.imp.fmt_int
+			addr := g.imp.fmts[.int]
 			if is_real(p.type) {
 				emit(x86.inst_r_r(.MOVQ, x86.XMM1, x86.RDX)) // varargs: FP half in XMM1
-				addr = is_last ? g.imp.fmt_real_nl : g.imp.fmt_real
+				addr = is_last ? g.imp.fmts[.real_nl] : g.imp.fmts[.real]
 			} else if is_string(p.type) {
-				addr = is_last ? g.imp.fmt_str_nl : g.imp.fmt_str
+				addr = is_last ? g.imp.fmts[.str_nl] : g.imp.fmts[.str]
 			} else {
-				addr = is_last ? g.imp.fmt_int_nl : g.imp.fmt_int
+				addr = is_last ? g.imp.fmts[.int_nl] : g.imp.fmts[.int]
 			}
 			mov_ri(x86.RCX, i64(addr))
-			mov_ri(x86.RAX, i64(g.imp.iat_printf))
+			mov_ri(x86.RAX, i64(g.imp.funcs[.printf]))
 			aligned_call_ptr(x86.RAX)
 		}
 		if id == .println && len(v.parameters) == 0 {
-			mov_ri(x86.RCX, i64(g.imp.fmt_nl))
-			mov_ri(x86.RAX, i64(g.imp.iat_printf))
+			mov_ri(x86.RCX, i64(g.imp.fmts[.nl]))
+			mov_ri(x86.RAX, i64(g.imp.funcs[.printf]))
 			aligned_call_ptr(x86.RAX)
 		}
 		mov_ri(x86.RAX, 0)
@@ -735,7 +735,7 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		// double floor/ceil(double): arg and result in XMM0
 		gen_expr(v.parameters[0])
 		pop_xmm(x86.XMM0)
-		mov_ri(x86.RAX, i64(id == .floor ? g.imp.iat_floor : g.imp.iat_ceil))
+		mov_ri(x86.RAX, i64(id == .floor ? g.imp.funcs[.floor] : g.imp.funcs[.ceil]))
 		aligned_call_ptr(x86.RAX)
 		emit(x86.inst_r_r(.MOVQ, x86.RAX, x86.XMM0)) // result bits in RAX (RValue)
 
@@ -752,7 +752,7 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		}
 		mov_ri(x86.RCX, 1)      // count
 		mov_ri(x86.RDX, size)   // element size
-		mov_ri(x86.RAX, i64(g.imp.iat_calloc))
+		mov_ri(x86.RAX, i64(g.imp.funcs[.calloc]))
 		aligned_call_ptr(x86.RAX) // RAX = pointer
 		push_r(x86.RAX)
 		gen_addr(p)
@@ -764,7 +764,7 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 	case .delete:
 		gen_expr(v.parameters[0])
 		pop_r(x86.RCX) // pointer to free
-		mov_ri(x86.RAX, i64(g.imp.iat_free))
+		mov_ri(x86.RAX, i64(g.imp.funcs[.free]))
 		aligned_call_ptr(x86.RAX)
 		mov_ri(x86.RAX, 0)
 
@@ -776,7 +776,7 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		pop_r(x86.R8)  // n
 		pop_r(x86.RDX) // src
 		pop_r(x86.RCX) // dst
-		mov_ri(x86.RAX, i64(g.imp.iat_memmove))
+		mov_ri(x86.RAX, i64(g.imp.funcs[.memmove]))
 		aligned_call_ptr(x86.RAX)
 		mov_ri(x86.RAX, 0)
 
@@ -788,8 +788,8 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		emit(x86.inst_r_r(.TEST, x86.RAX, x86.RAX))
 		ok_label := fwd_label()
 		emit(x86.inst_rel(.JNE, ok_label, 4)) // cond true -> skip
-		mov_ri(x86.RCX, i64(g.imp.fmt_assert))
-		mov_ri(x86.RAX, i64(g.imp.iat_printf))
+		mov_ri(x86.RCX, i64(g.imp.fmts[.assert]))
+		mov_ri(x86.RAX, i64(g.imp.funcs[.printf]))
 		aligned_call_ptr(x86.RAX)
 		emit(x86.inst_none(.UD2)) // trap
 		set_label(ok_label)
@@ -797,13 +797,50 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 
 
 	case .pack:
-		gen_error(v.pos, "backend: builtin 'pack' is not supported")
+		// x := ldexp(x, n)   (x: var real, n: integer)
+		x := v.parameters[0]
+		n := v.parameters[1]
+		gen_expr(x)
+		pop_xmm(x86.XMM0)             // XMM0 = x
+		gen_expr(n)
+		pop_r(x86.RDX)               // RDX/EDX = n (2nd arg slot)
+		mov_ri(x86.RAX, i64(g.imp.funcs[.ldexp]))
+		aligned_call_ptr(x86.RAX)    // XMM0 = x * 2^n
+		gen_addr(x)
+		pop_r(x86.RCX)               // &x
+		emit(x86.inst_r_r(.MOVQ, x86.RAX, x86.XMM0))
+		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
 		mov_ri(x86.RAX, 0)
+
 
 	case .unpack:
-		gen_error(v.pos, "backend: builtin 'unpack' is not supported")
+		// frexp gives mantissa in [0.5,1); normalize to [1,2) and adjust exponent
+		x := v.parameters[0]
+		n := v.parameters[1]
+		gen_expr(x)
+		pop_xmm(x86.XMM0)            // XMM0 = x
+		emit(x86.inst_r_i(.SUB, x86.RSP, 16, 4))     // scratch for int* exp
+		emit(x86.inst_r_r(.MOV, x86.RDX, x86.RSP))   // RDX = &exp
+		mov_ri(x86.RAX, i64(g.imp.funcs[.frexp]))
+		aligned_call_ptr(x86.RAX)   // XMM0 = mantissa; [rsp] = exp (int)
+		emit(x86.inst_r_m(.MOVSXD, x86.RCX, x86.mem_base_only(x86.RSP), 4)) // RCX = exp
+		emit(x86.inst_r_r(.ADDSD, x86.XMM0, x86.XMM0)) // mantissa *= 2 -> [1,2)
+		emit(x86.inst_r_i(.SUB, x86.RCX, 1, 4))        // exp -= 1
+		emit(x86.inst_r_i(.ADD, x86.RSP, 16, 4))       // free scratch
+		// n := exp
+		push_r(x86.RCX)
+		gen_addr(n)
+		pop_r(x86.RAX)             // &n
+		pop_r(x86.RCX)             // exp
+		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RAX), 8, x86.RCX))
+		// x := mantissa
+		emit(x86.inst_r_r(.MOVQ, x86.RAX, x86.XMM0))
+		push_r(x86.RAX)
+		gen_addr(x)
+		pop_r(x86.RCX)             // &x
+		pop_r(x86.RAX)             // mantissa bits
+		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
 		mov_ri(x86.RAX, 0)
-
 	case .Invalid:
 		fallthrough
 	case:
@@ -1054,7 +1091,7 @@ gen_entry :: proc(m: ^Module) {
 		gen_stmts(entry)
 	}
 	mov_ri(x86.RCX, 0)
-	mov_ri(x86.RAX, i64(g.imp.iat_exit))
+	mov_ri(x86.RAX, i64(g.imp.funcs[.exit]))
 	aligned_call_ptr(x86.RAX)
 	emit(x86.inst_none(.RET))
 }

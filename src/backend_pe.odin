@@ -101,12 +101,60 @@ IMAGE_SCN_MEM_EXECUTE :: 0x20000000
 IMAGE_SCN_MEM_READ    :: 0x40000000
 IMAGE_SCN_MEM_WRITE   :: 0x80000000
 
+IAT_Func :: enum {
+	printf,
+	exit,
+	floor,
+	ceil,
+	calloc,
+	free,
+	memmove,
+	ldexp,
+	frexp,
+}
+@(rodata)
+iat_func_strings := [IAT_Func]string{
+	.printf  = "printf",
+	.exit    = "exit",
+	.floor   = "floor",
+	.ceil    = "ceil",
+	.calloc  = "calloc",
+	.free    = "free",
+	.memmove = "memmove",
+	.ldexp   = "ldexp",
+	.frexp   = "frexp",
+}
+
+Fmt_Kind :: enum {
+	int,
+	int_nl,
+	nl,
+	real,
+	real_nl,
+	str,
+	str_nl,
+	assert,
+}
+@(rodata)
+fmt_kind_formats := [Fmt_Kind]string{
+	.int     = "%lld",
+	.int_nl  = "%lld\n",
+	.nl      = "\n",
+	.real    = "%g",
+	.real_nl = "%g\n",
+	.str     = "%s",
+	.str_nl  = "%s\n",
+	.assert  = "assertion failed\n",
+}
+
 
 // Absolute virtual addresses that the backend needs from the import region.
 Imports :: struct {
-	iat_printf, iat_exit, iat_floor, iat_ceil, iat_calloc, iat_free, iat_memmove: u64,
-	fmt_int, fmt_int_nl, fmt_nl, fmt_real, fmt_real_nl, fmt_str, fmt_str_nl, fmt_assert: u64,
-	iat_rva, iat_size: u32,
+	funcs: [IAT_Func]u64,
+	fmts:  [Fmt_Kind]u64,
+
+	iat_rva:  u32,
+	iat_size: u32,
 }
 
 pe_put_u32 :: proc(b: []u8, v: u32) {
@@ -135,8 +183,7 @@ pe_create_imports :: proc() -> (region: [IMPORT_REGION_SIZE]u8, imp: Imports) {
 		return IMAGE_BASE + TEXT_BASE + u64(off)
 	}
 
-	funcs := []string{"printf", "exit", "floor", "ceil", "calloc", "free", "memmove"}
-	nf := len(funcs)
+	nf := len(iat_func_strings)
 
 	int_off   := 40
 	iat_off   := int_off + (nf + 1) * 8
@@ -152,8 +199,8 @@ pe_create_imports :: proc() -> (region: [IMPORT_REGION_SIZE]u8, imp: Imports) {
 	if cur % 2 != 0 { cur += 1 }
 	pe_put_u32(b[12:], u32(TEXT_BASE + dll_off)) // Name -> "msvcrt.dll"
 
-	iats: [7]u64
-	for fn, i in funcs {
+	for fn, func_enum in iat_func_strings {
+		i := int(func_enum)
 		byname := cur
 		copy(b[byname + 2:], fn) // 2-byte hint (0) precedes the name
 		b[byname + 2 + len(fn)] = 0
@@ -161,27 +208,14 @@ pe_create_imports :: proc() -> (region: [IMPORT_REGION_SIZE]u8, imp: Imports) {
 		if cur % 2 != 0 { cur += 1 }
 		pe_put_u64(b[int_off + i * 8:], u64(TEXT_BASE + byname))
 		pe_put_u64(b[iat_off + i * 8:], u64(TEXT_BASE + byname))
-		iats[i] = IMAGE_BASE + TEXT_BASE + u64(iat_off + i * 8)
-	}
+		imp.funcs[func_enum] = IMAGE_BASE + TEXT_BASE + u64(iat_off + i * 8)	}
 
-	imp.iat_printf  = iats[0]
-	imp.iat_exit    = iats[1]
-	imp.iat_floor   = iats[2]
-	imp.iat_ceil    = iats[3]
-	imp.iat_calloc  = iats[4]
-	imp.iat_free    = iats[5]
-	imp.iat_memmove = iats[6]
 	imp.iat_rva     = u32(TEXT_BASE + iat_off)
 	imp.iat_size    = u32(nf * 8)
 
-	imp.fmt_int     = put_cstr(b, &cur, "%lld")
-	imp.fmt_int_nl  = put_cstr(b, &cur, "%lld\n")
-	imp.fmt_nl      = put_cstr(b, &cur, "\n")
-	imp.fmt_real    = put_cstr(b, &cur, "%g")
-	imp.fmt_real_nl = put_cstr(b, &cur, "%g\n")
-	imp.fmt_str     = put_cstr(b, &cur, "%s")
-	imp.fmt_str_nl  = put_cstr(b, &cur, "%s\n")
-	imp.fmt_assert  = put_cstr(b, &cur, "assertion failed\n")
+	for str, kind in fmt_kind_formats {
+		imp.fmts[kind] = put_cstr(b, &cur, str)
+	}
 	return
 }
 

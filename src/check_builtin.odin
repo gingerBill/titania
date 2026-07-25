@@ -429,22 +429,42 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			}
 		}
 
-	case .pack, .unpack:
+	case .pack:
+		// pack(x, n): x := x * 2^n   (x: var real, n: integer)
 		o.mode = .No_Value
 		o.type = t_invalid
 		if len(parameters) != 2 {
 			error(c, o.expr.pos, "expected 2 parameters to '%s', got %d", name, len(parameters))
-			return
 		}
-		x: Operand
-		e: Operand
-		check_expr(c, &x, parameters[0])
-		check_expr(c, &e, parameters[1])
-		if !(x.type.kind == .Real && x.mode == .LValue) {
-			error(c, x.expr.pos, "(parameter-0) must be an addressable real, got %s", type_to_string(x.type))
+		if len(parameters) > 1 {
+			x, n: Operand
+			check_expr(c, &x, parameters[0])
+			check_expr(c, &n, parameters[1])
+			if !(x.mode == .LValue && x.type.kind == .Real) {
+				error(c, x.expr.pos, "first parameter to '%s' must be an addressable real", name)
+			}
+			if n.type.kind != .Int {
+				error(c, n.expr.pos, "second parameter to '%s' must be an integer", name)
+			}
 		}
-		if !(e.type.kind == .Int && e.mode == .LValue) {
-			error(c, e.expr.pos, "(parameter-1) must be an addressable integer, got %s", type_to_string(e.type))
+
+	case .unpack:
+		// unpack(x, n): x, n := mantissa, exponent  (both var; 1.0 <= x < 2.0)
+		o.mode = .No_Value
+		o.type = t_invalid
+		if len(parameters) != 2 {
+			error(c, o.expr.pos, "expected 2 parameters to '%s', got %d", name, len(parameters))
+		}
+		if len(parameters) > 1 {
+			x, n: Operand
+			check_expr(c, &x, parameters[0])
+			check_expr(c, &n, parameters[1])
+			if !(x.mode == .LValue && x.type.kind == .Real) {
+				error(c, x.expr.pos, "first parameter to '%s' must be an addressable real", name)
+			}
+			if !(n.mode == .LValue && n.type.kind == .Int) {
+				error(c, n.expr.pos, "second parameter to '%s' must be an addressable integer", name)
+			}
 		}
 	}
 }
