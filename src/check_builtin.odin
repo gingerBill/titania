@@ -429,9 +429,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			}
 		}
 
-	case .pack:
-
-	case .unpack:
+	case .pack, .unpack:
 		o.mode = .No_Value
 		o.type = t_invalid
 		if len(parameters) != 2 {
@@ -442,12 +440,11 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		e: Operand
 		check_expr(c, &x, parameters[0])
 		check_expr(c, &e, parameters[1])
-		if x.type.kind != .Real {
-			error(c, x.expr.pos, "(parameter-0) must be a real, got %s", type_to_string(x.type))
+		if !(x.type.kind == .Real && x.mode == .LValue) {
+			error(c, x.expr.pos, "(parameter-0) must be an addressable real, got %s", type_to_string(x.type))
 		}
 		if !(e.type.kind == .Int && e.mode == .LValue) {
 			error(c, e.expr.pos, "(parameter-1) must be an addressable integer, got %s", type_to_string(e.type))
 		}
-
 	}
 }
