@@ -48,11 +48,6 @@ push_const_int :: proc(v: i64, pos: Pos) {
 	push_r(x86.RAX)
 }
 
-@(require_results)
-is_real :: proc(t: ^Type) -> bool {
-	return t != nil && t.kind == .Real
-}
-
 // Move an 8-byte stack slot into an XMM register (popping it).
 pop_xmm :: proc(x: x86.Register) {
 	pop_r(x86.RAX)
@@ -65,18 +60,6 @@ push_xmm :: proc(x: x86.Register) {
 	push_r(x86.RAX)
 }
 
-@(require_results)
-is_aggregate :: proc(t: ^Type) -> bool {
-	return t != nil && (t.kind == .Record || t.kind == .Array)
-}
-
-@(require_results)
-is_string :: proc(t: ^Type) -> bool {
-	if t == nil || t.kind != .Array {
-		return false
-	}
-	return t.variant.(^Type_Array).elem.kind == .Char
-}
 
 // Storage a variable of type t occupies. Scalars always get a full 8-byte slot (loads/stores are 8-byte); aggregates get their real size, rounded to 8.
 @(require_results)
@@ -115,7 +98,7 @@ store_scalar :: proc(t: ^Type) {
 }
 
 // Copy `size` bytes. Expects [.. src, dst] on the stack (dst on top).
-gen_mem_copy :: proc(size: i64) {
+gen_inline_mem_copy :: proc(size: i64) {
 	pop_r(x86.RAX) // dst
 	pop_r(x86.RCX) // src
 	k := i64(0)
@@ -132,20 +115,22 @@ gen_mem_copy :: proc(size: i64) {
 }
 
 @(require_results)
-record_field_offset :: proc(lhs_type: ^Type, field_ent: ^Entity) -> i64 {
-	t := lhs_type
-	if t.kind == .Pointer {
-		t = t.variant.(^Type_Pointer).elem
-	}
+record_field_offset :: proc(lhs_type: ^Type, field_ent: ^Entity) -> (offset: i64, found: bool) {
+	t := type_deref(lhs_type)
 	if rec, ok := t.variant.(^Type_Record); ok {
 		type_init_offsets_for_record(rec)
 		for f in rec.fields {
+			offset := f.offset
 			if f.entity == field_ent {
-				return f.offset
+				return offset, true
+			}
+			if .Using in f.entity.flags {
+				offset += record_field_offset(f.entity.type, field_ent) or_continue
+				return offset, true
 			}
 		}
 	}
-	return 0
+	return 0, false
 }
 
 // Push the base address of an aggregate that a selector/index applies to.
@@ -177,7 +162,10 @@ gen_entity_addr :: proc(ent: ^Entity, pos: Pos) {
 // Push the address of `base.field`, auto-dereferencing a pointer base.
 gen_field_addr :: proc(base: ^Ast_Expr, field_ent: ^Entity) {
 	gen_aggregate_base_addr(base)
-	off := record_field_offset(base.type, field_ent)
+	off, ok := record_field_offset(base.type, field_ent)
+	if !ok {
+		gen_error(field_ent.pos, "backend: invalid record field offset calculation")
+	}
 	pop_r(x86.RAX)
 	if off != 0 {
 		emit(x86.inst_r_i(.ADD, x86.RAX, i64(off), 4))
@@ -872,7 +860,7 @@ gen_stmt :: proc(s: ^Ast_Stmt) {
 		if is_aggregate(v.lhs.type) {
 			gen_expr(v.rhs)  // src address
 			gen_addr(v.lhs)  // dst address
-			gen_mem_copy(type_size_of(v.lhs.type))
+			gen_inline_mem_copy(type_size_of(v.lhs.type))
 		} else {
 			gen_expr(v.rhs)  // value
 			gen_addr(v.lhs)  // dst address
@@ -1141,10 +1129,10 @@ generate :: proc(m: ^Module, out_filename: string) -> bool {
 	code_va  := u64(IMAGE_BASE) + u64(code_rva)
 
 	code_buf := make([]u8, len(g.code) * 16 + 64)
-	defer delete(code_buf)
 	relocs: [dynamic]x86.Relocation
+	errs:   [dynamic]x86.Error
+	defer delete(code_buf)
 	defer delete(relocs)
-	errs: [dynamic]x86.Error
 	defer delete(errs)
 
 	n, ok := x86.encode(g.code[:], g.labels[:], code_buf, &relocs, &errs, true, code_va, ._64)

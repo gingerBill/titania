@@ -77,6 +77,24 @@ t_real    := &Type{kind = .Real,    size = 8, align = 8}
 t_byte    := &Type{kind = .Byte,    size = 1, align = 1}
 t_set     := &Type{kind = .Set,     size = 8, align = 8}
 
+@(require_results)
+is_real :: proc(t: ^Type) -> bool {
+	return t == t_real
+}
+
+@(require_results)
+is_string :: proc(t: ^Type) -> bool {
+	if t == nil || t.kind != .Array {
+		return false
+	}
+	return t.variant.(^Type_Array).elem.kind == .Char
+}
+
+@(require_results)
+is_aggregate :: proc(t: ^Type) -> bool {
+	return t != nil && (t.kind == .Record || t.kind == .Array)
+}
+
 
 @(require_results)
 align_forward_i64 :: proc(x, y: i64) -> i64 {
