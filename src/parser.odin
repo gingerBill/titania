@@ -774,7 +774,6 @@ parse_for_stmt :: proc(p: ^Parser) -> ^Ast_For_Stmt {
 	return stmt
 }
 
-
 // designator = qual_ident {selector}
 parse_designator :: proc(p: ^Parser) -> ^Ast_Expr {
 	lhs := parse_qual_ident_as_expr(p)

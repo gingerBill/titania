@@ -141,9 +141,11 @@ check_selector :: proc(c: ^Checker_Context, o: ^Operand, rhs: ^Ast_Ident) {
 
 
 check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
-	defer if o.mode == .Const {
-		expr.value = o.value
-		expr.type  = o.type
+	defer {
+		expr.type = o.type
+		if o.mode == .Const {
+			expr.value = o.value
+		}
 	}
 
 	switch e in expr.variant {
@@ -406,7 +408,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 			if len(e.parameters) != 1 {
 				error(c, e.call.pos, "expect only 1 parameter for a type conversion, got %d", len(e.parameters))
 			}
-			if len(e.parameters) > 1 {
+			if len(e.parameters) >= 1 {
 				p: Operand
 				check_expr(c, &p, e.parameters[0])
 

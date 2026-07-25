@@ -40,6 +40,9 @@ Builtin_Id :: enum {
 	println,
 
 	len,
+
+	pack,
+	unpack,
 }
 
 
@@ -81,6 +84,10 @@ builtin_strings := [Builtin_Id]string {
 	.println  = "println",
 
 	.len      = "len",
+
+	.pack     = "pack",
+	.unpack   = "unpack",
+
 }
 
 
@@ -267,7 +274,18 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		}
 
 	case .assert:
-		panic("TODO(bill): builtin.assert")
+		o.mode = .No_Value
+		o.type = t_invalid
+		if len(parameters) != 1 {
+			error(c, o.expr.pos, "expected 1 parameter to '%s', got %d", name, len(parameters))
+		}
+		if len(parameters) > 0 {
+			p: Operand
+			check_expr(c, &p, parameters[0])
+			if p.type.kind != .Bool {
+				error(c, o.expr.pos, "expected a boolean value to '%s', got %s", name, type_to_string(p.type))
+			}
+		}
 
 	case .new:
 		o.mode = .No_Value
@@ -374,7 +392,6 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		if !type_is_integer_like(n.type) {
 			error(c, n.expr.pos, "length (parameter-2) must be an integer-like value, got %s", type_to_string(n.type))
 		}
-		return
 
 	case .print, .println:
 		o.mode = .No_Value
@@ -411,5 +428,26 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 				error(c, p.expr.pos, "expected an array value or type to '%s'", name)
 			}
 		}
+
+	case .pack:
+
+	case .unpack:
+		o.mode = .No_Value
+		o.type = t_invalid
+		if len(parameters) != 2 {
+			error(c, o.expr.pos, "expected 2 parameters to '%s', got %d", name, len(parameters))
+			return
+		}
+		x: Operand
+		e: Operand
+		check_expr(c, &x, parameters[0])
+		check_expr(c, &e, parameters[1])
+		if x.type.kind != .Real {
+			error(c, x.expr.pos, "(parameter-0) must be a real, got %s", type_to_string(x.type))
+		}
+		if !(e.type.kind == .Int && e.mode == .LValue) {
+			error(c, e.expr.pos, "(parameter-1) must be an addressable integer, got %s", type_to_string(e.type))
+		}
+
 	}
 }

@@ -7,7 +7,7 @@ IMAGE_BASE         :: 0x400000
 TEXT_BASE          :: 0x1000
 FILE_ALIGN         :: 512
 SECT_ALIGN         :: 0x1000
-IMPORT_REGION_SIZE :: 256
+IMPORT_REGION_SIZE :: 512
 
 PEFileHeader :: struct #packed {
 	Magic:                [4]u8,
@@ -101,51 +101,91 @@ IMAGE_SCN_MEM_EXECUTE :: 0x20000000
 IMAGE_SCN_MEM_READ    :: 0x40000000
 IMAGE_SCN_MEM_WRITE   :: 0x80000000
 
-// Build the msvcrt.dll import region and return the absolute VAs the backend
-// needs (IAT slots for printf/exit, and the format strings).
-pe_create_imports :: proc() -> (region: [IMPORT_REGION_SIZE]u8, iat_printf, iat_exit, fmt_int, fmt_int_nl, fmt_nl: u64) {
-	put_u32 :: proc(b: []u8, v: u32) {
-		b[0] = u8(v)
-		b[1] = u8(v >> 8)
-		b[2] = u8(v >> 16)
-		b[3] = u8(v >> 24)
-	}
-	put_u64 :: proc(b: []u8, v: u64) {
-		for i in 0..<8 {
-			b[i] = u8(v >> (uint(i) * 8))
-		}
-	}
 
+// Absolute virtual addresses that the backend needs from the import region.
+Imports :: struct {
+	iat_printf, iat_exit, iat_floor, iat_ceil, iat_calloc, iat_free, iat_memmove: u64,
+	fmt_int, fmt_int_nl, fmt_nl, fmt_real, fmt_real_nl, fmt_str, fmt_str_nl, fmt_assert: u64,
+	iat_rva, iat_size: u32,
+}
+
+pe_put_u32 :: proc(b: []u8, v: u32) {
+	b[0] = u8(v)
+	b[1] = u8(v >> 8)
+	b[2] = u8(v >> 16)
+	b[3] = u8(v >> 24)
+}
+pe_put_u64 :: proc(b: []u8, v: u64) {
+	for i in 0..<8 {
+		b[i] = u8(v >> (uint(i) * 8))
+	}
+}
+
+// Build the msvcrt.dll import region for a fixed set of C functions and return
+// the absolute VAs the backend needs (IAT slots and format strings).
+pe_create_imports :: proc() -> (region: [IMPORT_REGION_SIZE]u8, imp: Imports) {
 	b := region[:]
 
-	// Import descriptor[0]
-	put_u32(b[0:],  TEXT_BASE + 40) // OriginalFirstThunk -> INT
-	put_u32(b[12:], TEXT_BASE + 88) // Name -> "msvcrt.dll"
-	put_u32(b[16:], TEXT_BASE + 64) // FirstThunk -> IAT
-	// descriptor[1] is a zeroed terminator
+	put_cstr :: proc(b: []u8, cur: ^int, s: string) -> u64 {
+		off := cur^
+		copy(b[off:], s)
+		b[off + len(s)] = 0
+		cur^ = off + len(s) + 1
+		if cur^ % 2 != 0 { cur^ += 1 }
+		return IMAGE_BASE + TEXT_BASE + u64(off)
+	}
 
-	// Import Name Table (INT) and Import Address Table (IAT): u64 thunks
-	put_u64(b[40:], TEXT_BASE + 100) // printf name
-	put_u64(b[48:], TEXT_BASE + 112) // exit name
-	put_u64(b[64:], TEXT_BASE + 100)
-	put_u64(b[72:], TEXT_BASE + 112)
+	funcs := []string{"printf", "exit", "floor", "ceil", "calloc", "free", "memmove"}
+	nf := len(funcs)
 
-	copy(b[88:],  "msvcrt.dll\x00")
-	copy(b[100:], "\x00\x00printf\x00")
-	copy(b[112:], "\x00\x00exit\x00")
-	copy(b[120:], "%lld\x00")
-	copy(b[128:], "%lld\n\x00")
-	copy(b[136:], "\n\x00")
+	int_off   := 40
+	iat_off   := int_off + (nf + 1) * 8
+	names_off := iat_off + (nf + 1) * 8
 
-	iat_printf = IMAGE_BASE + TEXT_BASE + 64
-	iat_exit   = IMAGE_BASE + TEXT_BASE + 72
-	fmt_int    = IMAGE_BASE + TEXT_BASE + 120
-	fmt_int_nl = IMAGE_BASE + TEXT_BASE + 128
-	fmt_nl     = IMAGE_BASE + TEXT_BASE + 136
+	// Import descriptor[0] (descriptor[1] is a zeroed terminator).
+	pe_put_u32(b[0:],  u32(TEXT_BASE + int_off)) // OriginalFirstThunk -> INT
+	pe_put_u32(b[16:], u32(TEXT_BASE + iat_off)) // FirstThunk        -> IAT
+
+	cur := names_off
+	dll_off := cur
+	copy(b[cur:], "msvcrt.dll\x00"); cur += 11
+	if cur % 2 != 0 { cur += 1 }
+	pe_put_u32(b[12:], u32(TEXT_BASE + dll_off)) // Name -> "msvcrt.dll"
+
+	iats: [7]u64
+	for fn, i in funcs {
+		byname := cur
+		copy(b[byname + 2:], fn) // 2-byte hint (0) precedes the name
+		b[byname + 2 + len(fn)] = 0
+		cur = byname + 2 + len(fn) + 1
+		if cur % 2 != 0 { cur += 1 }
+		pe_put_u64(b[int_off + i * 8:], u64(TEXT_BASE + byname))
+		pe_put_u64(b[iat_off + i * 8:], u64(TEXT_BASE + byname))
+		iats[i] = IMAGE_BASE + TEXT_BASE + u64(iat_off + i * 8)
+	}
+
+	imp.iat_printf  = iats[0]
+	imp.iat_exit    = iats[1]
+	imp.iat_floor   = iats[2]
+	imp.iat_ceil    = iats[3]
+	imp.iat_calloc  = iats[4]
+	imp.iat_free    = iats[5]
+	imp.iat_memmove = iats[6]
+	imp.iat_rva     = u32(TEXT_BASE + iat_off)
+	imp.iat_size    = u32(nf * 8)
+
+	imp.fmt_int     = put_cstr(b, &cur, "%lld")
+	imp.fmt_int_nl  = put_cstr(b, &cur, "%lld\n")
+	imp.fmt_nl      = put_cstr(b, &cur, "\n")
+	imp.fmt_real    = put_cstr(b, &cur, "%g")
+	imp.fmt_real_nl = put_cstr(b, &cur, "%g\n")
+	imp.fmt_str     = put_cstr(b, &cur, "%s")
+	imp.fmt_str_nl  = put_cstr(b, &cur, "%s\n")
+	imp.fmt_assert  = put_cstr(b, &cur, "assertion failed\n")
 	return
 }
 
-pe_write_exe :: proc(filename: string, section: []u8, entry_rva, image_size, import_dir_va, import_dir_size, iat_va, iat_size: u32) -> os.Error {
+pe_write_exe :: proc(filename: string, section: []u8, entry_rva, image_size, import_dir_va, import_dir_size, iat_va, iat_size: u32) {
 	write_pad :: proc(b: ^bytes.Buffer, n: int) {
 		for _ in 0..<n {
 			bytes.buffer_write_byte(b, 0)
@@ -154,8 +194,7 @@ pe_write_exe :: proc(filename: string, section: []u8, entry_rva, image_size, imp
 	write_ptr :: proc(b: ^bytes.Buffer, ptr: ^$T) {
 		bytes.buffer_write_ptr(b, ptr, size_of(T))
 	}
-
-	calc_padding :: proc(num, align: int) -> int {
+	pe_padding :: proc(num, align: int) -> int {
 		if num % align == 0 {
 			return 0
 		}
@@ -165,7 +204,7 @@ pe_write_exe :: proc(filename: string, section: []u8, entry_rva, image_size, imp
 	b := &bytes.Buffer{}
 	defer bytes.buffer_destroy(b)
 
-	raw_size := u32(len(section) + calc_padding(len(section), FILE_ALIGN))
+	raw_size := u32(len(section) + pe_padding(len(section), FILE_ALIGN))
 
 	bytes.buffer_write_string(b, "MZ")
 	write_pad(b, 58)
@@ -214,9 +253,9 @@ pe_write_exe :: proc(filename: string, section: []u8, entry_rva, image_size, imp
 		Characteristics  = IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE,
 	})
 
-	write_pad(b, calc_padding(len(b.buf), FILE_ALIGN))
+	write_pad(b, pe_padding(len(b.buf), FILE_ALIGN))
 	bytes.buffer_write(b, section)
 	write_pad(b, int(raw_size) - len(section))
 
-	return os.write_entire_file(filename, bytes.buffer_to_bytes(b))
+	_ = os.write_entire_file(filename, bytes.buffer_to_bytes(b))
 }
