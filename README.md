@@ -152,4 +152,7 @@ copy(dst, src, n) - non-overlapping memory copying from `src` to `dst` of `n` by
 print(...)        - variadic print without newline
 println(...)      - variadic print with newline
 len(x)            - length of an array 'x'
+
+pack(var x: real; n: int)        -
+unpack(var x: real; var n: int)  -
 ```
