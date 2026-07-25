@@ -89,17 +89,6 @@ Ast_Stmt_Sequence :: struct {
 	stmts: [dynamic]^Ast_Stmt
 }
 
-Ast_Stmt_Kind :: enum {
-	Invalid,
-	If,
-	Case,
-	While,
-	Repeat,
-	For,
-	Call,
-	Assign,
-}
-
 Ast_Stmt :: struct {
 	pos: Pos,
 	variant: union #shared_nil {
@@ -110,6 +99,7 @@ Ast_Stmt :: struct {
 		^Ast_For_Stmt,
 		^Ast_Expr_Stmt,
 		^Ast_Assign_Stmt,
+		^Ast_Return_Stmt,
 	},
 }
 
@@ -195,6 +185,11 @@ Ast_Assign_Stmt :: struct {
 	lhs: ^Ast_Expr,
 	tok: Token, // ":="
 	rhs: ^Ast_Expr,
+}
+
+Ast_Return_Stmt :: struct {
+	using base: Ast_Stmt,
+	tok: Token, // "return"
 }
 
 

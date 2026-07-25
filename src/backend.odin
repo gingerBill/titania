@@ -10,6 +10,8 @@ Gen :: struct {
 	labels:      [dynamic]isa.Label_Definition,
 	proc_labels: map[^Entity]u32,
 
+	end_ret_label: u32,
+
 	imp:         Imports,
 	global_base: u64,
 
@@ -915,6 +917,8 @@ gen_stmt :: proc(s: ^Ast_Stmt) {
 		gen_repeat(v)
 	case ^Ast_For_Stmt:
 		gen_for(v)
+	case ^Ast_Return_Stmt:
+		gen_return(v)
 	case ^Ast_Case_Stmt:
 		gen_error(v.pos, "backend: case statements are not supported")
 	}
@@ -1008,6 +1012,11 @@ gen_for :: proc(v: ^Ast_For_Stmt) {
 	set_label(end)
 }
 
+gen_return :: proc(v: ^Ast_Return_Stmt) {
+	assert(g.end_ret_label != 0)
+	emit(x86.inst_rel(.JMP, g.end_ret_label, 4))
+}
+
 
 @(require_results)
 assign_globals :: proc(m: ^Module) -> i64 {
@@ -1082,6 +1091,8 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 	frame := assign_proc_locals(pd)
 	gen_prologue(frame)
 
+	g.end_ret_label = fwd_label()
+
 	if pt, ok := ent.type.variant.(^Type_Proc); ok {
 		for pe, i in pt.parameters {
 			if is_aggregate(pe.type) {
@@ -1103,6 +1114,9 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 		gen_expr(re)
 		pop_r(x86.RAX)
 	}
+
+	set_label(g.end_ret_label)
+	g.end_ret_label = 0
 
 	gen_epilogue()
 }

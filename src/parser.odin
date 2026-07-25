@@ -219,13 +219,10 @@ parse_proc_decl :: proc(p: ^Parser) -> ^Ast_Proc_Decl {
 	expect_token(p, .Semicolon)
 
 	{
-		// proc_body = decl_sequence ["begin" stmt_sequence] ["return" expr] "end"
+		// proc_body = decl_sequence ["begin" stmt_sequence] "end"
 		decl.decls = parse_decl_sequence(p)
 		if allow_token(p, .Begin) {
 			decl.body = parse_stmt_sequence(p)
-		}
-		if allow_token(p, .Return) {
-			decl.return_expr = parse_expr(p)
 		}
 		expect_token(p, .End)
 	}
@@ -596,6 +593,8 @@ parse_stmt :: proc(p: ^Parser) -> ^Ast_Stmt {
 		return parse_repeat_stmt(p)
 	case .For:
 		return parse_for_stmt(p)
+	case .Return:
+		return parse_return_stmt(p)
 	case .Semicolon:
 		expect_token(p, .Semicolon)
 		return nil
@@ -773,6 +772,14 @@ parse_for_stmt :: proc(p: ^Parser) -> ^Ast_For_Stmt {
 	expect_token(p, .End)
 	return stmt
 }
+
+// return_stmt = "return"
+parse_return_stmt :: proc(p: ^Parser) -> ^Ast_Return_Stmt {
+	stmt := ast_new(p.module, p.curr_token.pos, Ast_Return_Stmt)
+	stmt.tok = expect_token(p, .Return)
+	return stmt
+}
+
 
 // designator = qual_ident {selector}
 parse_designator :: proc(p: ^Parser) -> ^Ast_Expr {

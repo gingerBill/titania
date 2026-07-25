@@ -108,6 +108,9 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 		} else if !types_equal(lhs.type, rhs.type) {
 			error(c, s.lhs.pos, "cannot assigned to left-hand-side as types do not match, %s vs %s", type_to_string(lhs.type), type_to_string(rhs.type))
 		}
+
+	case ^Ast_Return_Stmt:
+		// do nothing
 	}
 
 }
