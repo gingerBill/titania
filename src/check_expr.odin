@@ -142,6 +142,7 @@ check_selector :: proc(c: ^Checker_Context, o: ^Operand, rhs: ^Ast_Ident) {
 
 check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 	defer {
+		o.expr = expr
 		expr.type = o.type
 		if o.mode == .Const {
 			expr.value = o.value
@@ -285,7 +286,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 				error(c, rhs.expr.pos, "expected a set value for 'in', got %s", type_to_string(rhs.type))
 			}
 			if !operand_is_value(lhs) || !type_is_integer_like(lhs.type) {
-				error(c, lhs.expr.pos, "expected an integer-like value to test against a test for 'in', got %s", type_to_string(lhs.type))
+				error(c, lhs.expr.pos, "expected an integer-like value to test against a test for 'in', got '%s'", type_to_string(lhs.type))
 			}
 			return
 		}
