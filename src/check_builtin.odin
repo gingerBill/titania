@@ -8,8 +8,8 @@ Builtin_Id :: enum {
 
 	abs, // absolute value
 
-	lsh,
-	ash,
+	lsl,
+	asr,
 	ror,
 
 	chr,
@@ -43,6 +43,8 @@ Builtin_Id :: enum {
 
 	pack,
 	unpack,
+
+	exit,
 }
 
 
@@ -52,8 +54,8 @@ builtin_strings := [Builtin_Id]string {
 
 	.abs      = "abs",
 
-	.lsh      = "lsh",
-	.ash      = "ash",
+	.lsl      = "lsl",
+	.asr      = "asr",
 	.ror      = "ror",
 
 	.chr      = "chr",
@@ -88,6 +90,7 @@ builtin_strings := [Builtin_Id]string {
 	.pack     = "pack",
 	.unpack   = "unpack",
 
+	.exit     = "exit",
 }
 
 
@@ -116,7 +119,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			o.type = p.type
 		}
 
-	case .lsh, .ash, .ror:
+	case .lsl, .asr, .ror:
 		if len(parameters) != 2 {
 			error(c, o.expr.pos, "expected 2 parameter to '%s', got %d", name, len(parameters))
 		}
@@ -136,8 +139,8 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			} else if x.mode == .Const && y.mode == .Const {
 				if a, b, ok := type_assert2(x.value, y.value, i64); ok {
 					#partial switch id {
-					case .lsh: o.value = a<<u64(max(b, 0))
-					case .ash: o.value = a>>u64(max(b, 0))
+					case .lsl: o.value = a<<u64(max(b, 0))
+					case .asr: o.value = a>>u64(max(b, 0))
 					case .ror:
 						n :: 64
 						s := u64(b)
@@ -465,6 +468,22 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			if !(n.mode == .LValue && n.type.kind == .Int) {
 				error(c, n.expr.pos, "second parameter to '%s' must be an addressable integer", name)
 			}
+		}
+
+	case .exit:
+		o.mode = .No_Value
+		o.type = t_invalid
+		switch len(parameters) {
+		case 0:
+			// okay
+		case 1:
+			code: Operand
+			check_expr(c, &code, parameters[0])
+			if code.type.kind != .Int {
+				error(c, o.expr.pos, "expected an integer value to '%s', got %s", name, type_to_string(code.type))
+			}
+		case:
+			error(c, o.expr.pos, "expected 0 or 1 parameters to '%s', got %d", name, len(parameters))
 		}
 	}
 }

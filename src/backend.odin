@@ -23,7 +23,16 @@ Gen :: struct {
 
 g: ^Gen
 
-ARG_REGS := [4]x86.Register{x86.RCX, x86.RDX, x86.R8, x86.R9}
+
+// Register-argument order for the _internal_ Titania calling convention and not the Windows x64 ABI,
+// as reals (floating-point numbers) are passed in these too.
+// The program exits via `exit()` rather than returning to the OS.
+// The first four match the Win64 integer arg registers; the rest are otherwise-unused GPRs.
+ARG_REGS := [?]x86.Register{
+	x86.RCX, x86.RDX, x86.R8, x86.R9,   // Windows x64 ABI integer argument registers
+	x86.RSI, x86.RDI,                   // non-volatile (preserved by CRT calls)
+	x86.R12, x86.R13, x86.R14, x86.R15, // non-volatile (preserved by CRT calls)
+}
 
 emit :: proc(inst: x86.Instruction) {
 	append(&g.code, inst)
@@ -622,8 +631,8 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 		_ = gen_type_conv(v.parameters[0], ent.type.kind)
 	case .Proc:
 		n := len(v.parameters)
-		if n > 4 {
-			gen_error(v.pos, "backend: at most 4 arguments are supported")
+		if n > len(ARG_REGS) {
+			gen_error(v.pos, "backend: at most %d arguments are supported", len(ARG_REGS))
 			mov_ri(x86.RAX, 0)
 			return
 		}
@@ -652,6 +661,76 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 	}
 }
 
+// Print a set value as a list of its members:
+// e.g. `{3, 5}` or `{} (for empty set)
+// Emits a bit-scan loop that calls printf once per set bit.
+// Loop state is kept in non-volatile registers (RSI/RDI/R12) so it survives any `printf` call.
+gen_print_set :: proc(newline: bool) {
+	printf := i64(g.imp.funcs[.printf])
+
+	pop_r(x86.RAX) // the set bitmask
+
+	push_r(x86.RSI)
+	push_r(x86.RDI)
+	push_r(x86.R12)
+
+	emit(x86.inst_r_r(.MOV, x86.RSI, x86.RAX)) // RSI = mask (shifted right each step)
+	emit(x86.inst_r_r(.XOR, x86.RDI, x86.RDI)) // RDI = current bit index
+	mov_ri(x86.R12, 1)                         // R12 = "first element?" flag
+
+	// printf("{")
+	mov_ri(x86.RCX, i64(g.imp.fmts[.set_open]))
+	mov_ri(x86.RAX, printf)
+	aligned_call_ptr(x86.RAX)
+
+	top  := new_label()
+	done := fwd_label()
+
+	// while mask != 0
+	emit(x86.inst_r_r(.TEST, x86.RSI, x86.RSI))
+	emit(x86.inst_rel(.JE, done, 4))
+
+	// if (mask & 1) == 0, this index is not a member -> skip
+	skip := fwd_label()
+	emit(x86.inst_r_r(.MOV, x86.RAX, x86.RSI))
+	emit(x86.inst_r_i(.AND, x86.RAX, 1, 4)) // AND sets ZF from bit 0
+	emit(x86.inst_rel(.JE, skip, 4))
+
+	// pick the format: first member -> "%lld", later members -> ", %lld"
+	use_sep := fwd_label()
+	do_prn  := fwd_label()
+	emit(x86.inst_r_r(.TEST, x86.R12, x86.R12))
+	emit(x86.inst_rel(.JE, use_sep, 4)) // R12 == 0 -> not the first member
+	mov_ri(x86.RCX, i64(g.imp.fmts[.int]))
+	emit(x86.inst_r_r(.XOR, x86.R12, x86.R12)) // clear "first" flag
+	emit(x86.inst_rel(.JMP, do_prn, 4))
+
+	set_label(use_sep)
+	mov_ri(x86.RCX, i64(g.imp.fmts[.set_sep]))
+
+	set_label(do_prn)
+	emit(x86.inst_r_r(.MOV, x86.RDX, x86.RDI)) // 2nd printf arg = bit index
+	mov_ri(x86.RAX, printf)
+	aligned_call_ptr(x86.RAX)
+
+	// mask >>= 1 (logical, so bit 63 doesn't smear), index++
+	set_label(skip)
+	mov_ri(x86.RCX, 1)
+	emit(x86.inst_r_r(.SHR, x86.RSI, x86.CL))
+	emit(x86.inst_r_i(.ADD, x86.RDI, 1, 4))
+	emit(x86.inst_rel(.JMP, top, 4))
+
+	set_label(done)
+	// printf("}") or printf("}\n")
+	mov_ri(x86.RCX, i64(newline ? g.imp.fmts[.set_close_nl] : g.imp.fmts[.set_close]))
+	mov_ri(x86.RAX, printf)
+	aligned_call_ptr(x86.RAX)
+
+	pop_r(x86.R12)
+	pop_r(x86.RDI)
+	pop_r(x86.RSI)
+}
+
 // Builtins. RValue builtins leave their result in RAX (the caller pushes it);
 // No_Value builtins (print/println, inc/dec) leave the stack balanced.
 gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
@@ -661,6 +740,10 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		for p, i in v.parameters {
 			is_last := id == .println && i == last
 			gen_expr(p)
+			if p.type == t_set {
+				gen_print_set(is_last)
+				continue
+			}
 			pop_r(x86.RDX) // 2nd printf arg (MS varargs: also the GPR half)
 			addr := g.imp.fmts[.int]
 			if is_real(p.type) {
@@ -708,7 +791,7 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		gen_expr(v.parameters[0])
 		pop_r(x86.RAX)
 
-	case .lsh, .ash, .ror:
+	case .lsl, .asr, .ror:
 		gen_expr(v.parameters[0]) // x
 		gen_expr(v.parameters[1]) // n
 		pop_r(x86.RCX)            // n (shift/rotate count, uses CL)
@@ -721,8 +804,8 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		}
 		mn: x86.Mnemonic
 		#partial switch id {
-		case .lsh: mn = .SHL
-		case .ash: mn = .SAR
+		case .lsl: mn = .SHL
+		case .asr: mn = .SAR
 		case .ror: mn = .ROR
 		}
 		emit(x86.inst_r_r(mn, x86.RAX, x86.CL))
@@ -751,8 +834,28 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		mov_ri(x86.RAX, 0)
 
 	case .incl, .excl:
-		gen_error(v.pos, "backend: set builtins are not supported")
-		mov_ri(x86.RAX, 0)
+		// incl(s, x): s |=  (1<<x)
+		// excl(s, x): s &= ~(1<<x)
+		s := v.parameters[0]
+		gen_expr(s)
+		gen_expr(v.parameters[1]) // x
+		pop_r(x86.RCX) // RCX = x
+		pop_r(x86.RAX) // RCX = s
+		mov_ri(x86.RDX, 1)
+		emit(x86.inst_r_r(.SHL, x86.RDX, x86.CL)) // RDX = 1<<X
+		if id == .incl {
+			emit(x86.inst_r_r(.OR, x86.RAX, x86.RDX)) // set bit x
+		} else {
+			mov_ri(x86.RCX, -1) // all-ones
+			emit(x86.inst_r_r(.XOR, x86.RDX, x86.RCX)) // RDX = ~(1<<x)
+			emit(x86.inst_r_r(.AND, x86.RAX, x86.RDX)) // clear bit x
+		}
+		push_r(x86.RAX)      // [new]
+		gen_addr(s)          // [&s, new]
+		pop_r(x86.RAX)       // RAX = &s
+		pop_r(x86.RCX)       // RCX = new
+		store_scalar(s.type) // s = new
+
 	case .floor, .ceil:
 		// double floor/ceil(double): arg and result in XMM0
 		gen_expr(v.parameters[0])
@@ -864,6 +967,17 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 		pop_r(x86.RAX)             // mantissa bits
 		emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RCX), 8, x86.RAX))
 		mov_ri(x86.RAX, 0)
+
+	case .exit:
+		assert(len(v.parameters) <= 1)
+		if len(v.parameters) == 1 {
+			gen_expr(v.parameters[0])
+			pop_r(x86.RCX)
+		} else {
+			mov_ri(x86.RCX, 0)
+		}
+		mov_ri(x86.RAX, i64(g.imp.funcs[.exit]))
+		aligned_call_ptr(x86.RAX)
 
 	case .Invalid:
 		fallthrough
@@ -1098,7 +1212,7 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 			if is_aggregate(pe.type) {
 				gen_error(pd.name.pos, "backend: aggregate (record/array) parameters are not supported yet")
 			}
-			if i >= 4 {
+			if i >= len(ARG_REGS) {
 				break
 			}
 			emit(x86.inst_m_r(.MOV, x86.mem_base_disp(x86.RBP, -pe.backend_offset), 8, ARG_REGS[i]))

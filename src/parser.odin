@@ -143,37 +143,47 @@ parse_import_decl :: proc(p: ^Parser, tok: Token) -> ^Ast_Import {
 	return imp
 }
 
-// decl_sequence = ["const" {const_decl ";"}]
-//                 ["type"  {type_decl  ";"}]
-//                 ["var"   {var_decl   ";"}]
-//                 [{proc_dec  l        ";"}]
-parse_decl_sequence :: proc(p: ^Parser) -> (seq: [dynamic]^Ast_Decl) {
-	seq.allocator = ast_allocator(p.module)
+// decl_sequence = {["const" {const_decl ";"}]
+//                  ["type"  {type_decl  ";"}]
+//                  ["var"   {var_decl   ";"}]
+//                  [proc_decl           ";"]}
+parse_decl_sequence :: proc(p: ^Parser) -> (decls: [dynamic]^Ast_Decl) {
+	decls.allocator = ast_allocator(p.module)
 
-	if peek_token(p, .Const) {
-		tok := expect_token(p, .Const)
-		for peek_token(p, .Ident) {
-			append(&seq, parse_const_decl(p, tok))
+	for {
+		any_decl := false
+		switch {
+		case peek_token(p, .Const):
+			any_decl = true
+			tok := expect_token(p, .Const)
+			for peek_token(p, .Ident) {
+				any_decl = true
+				append(&decls, parse_const_decl(p, tok))
+				expect_token(p, .Semicolon)
+			}
+		case peek_token(p, .Type):
+			any_decl = true
+			tok := expect_token(p, .Type)
+			for peek_token(p, .Ident) {
+				any_decl = true
+				append(&decls, parse_type_decl(p, tok))
+				expect_token(p, .Semicolon)
+			}
+		case peek_token(p, .Var):
+			any_decl = true
+			tok := expect_token(p, .Var)
+			for peek_token(p, .Ident) {
+				any_decl = true
+				append(&decls, parse_var_decl(p, tok))
+				expect_token(p, .Semicolon)
+			}
+		case peek_token(p, .Proc):
+			any_decl = true
+			append(&decls, parse_proc_decl(p))
 			expect_token(p, .Semicolon)
+		case:
+			return
 		}
-	}
-	if peek_token(p, .Type) {
-		tok := expect_token(p, .Type)
-		for peek_token(p, .Ident) {
-			append(&seq, parse_type_decl(p, tok))
-			expect_token(p, .Semicolon)
-		}
-	}
-	if peek_token(p, .Var) {
-		tok := expect_token(p, .Var)
-		for peek_token(p, .Ident) {
-			append(&seq, parse_var_decl(p, tok))
-			expect_token(p, .Semicolon)
-		}
-	}
-	for peek_token(p, .Proc) {
-		append(&seq, parse_proc_decl(p))
-		expect_token(p, .Semicolon)
 	}
 
 	return

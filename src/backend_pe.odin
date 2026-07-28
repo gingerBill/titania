@@ -134,6 +134,11 @@ Fmt_Kind :: enum {
 	str,
 	str_nl,
 	assert,
+
+	set_open,
+	set_close,
+	set_close_nl,
+	set_sep,
 }
 @(rodata)
 fmt_kind_formats := [Fmt_Kind]string{
@@ -145,6 +150,11 @@ fmt_kind_formats := [Fmt_Kind]string{
 	.str     = "%s",
 	.str_nl  = "%s\n",
 	.assert  = "assertion failed\n",
+
+	.set_open     = "{",
+	.set_close    = "}",
+	.set_close_nl = "}\n",
+	.set_sep      = ", %lld",
 }
 
 
