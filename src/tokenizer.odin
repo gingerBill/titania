@@ -45,7 +45,6 @@ Token_Kind :: enum {
 	Dot,
 	Comma,
 	Semicolon,
-	Vertical_Bar,
 	Paren_Open,
 	Paren_Close,
 	Bracket_Open,
@@ -115,7 +114,6 @@ token_kind_string := [Token_Kind]string{
 	.Dot                = ".",
 	.Comma              = ",",
 	.Semicolon          = ";",
-	.Vertical_Bar       = "|",
 	.Paren_Open         = "(",
 	.Paren_Close        = ")",
 	.Bracket_Open       = "[",
@@ -411,7 +409,6 @@ get_token :: proc(t: ^Tokenizer) -> (token: Token) {
 		}
 	case ',':  token.kind = .Comma
 	case ';':  token.kind = .Semicolon
-	case '|':  token.kind = .Vertical_Bar
 	case '(':  token.kind = .Paren_Open
 	case ')':  token.kind = .Paren_Close
 	case '[':  token.kind = .Bracket_Open

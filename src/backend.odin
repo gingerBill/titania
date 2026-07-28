@@ -314,7 +314,7 @@ callee_entity :: proc(e: ^Ast_Expr) -> ^Entity {
 
 
 gen_expr :: proc(e: ^Ast_Expr) {
-	#partial switch v in e.value {
+	switch v in e.value {
 	case i64:
 		mov_ri(x86.RAX, v)
 		push_r(x86.RAX)
@@ -403,10 +403,13 @@ gen_load_entity :: proc(e: ^Entity, pos: Pos) {
 	}
 	#partial switch e.kind {
 	case .Const:
-		#partial switch cv in e.value {
-		case i64:  mov_ri(x86.RAX, cv)
-		case bool: mov_ri(x86.RAX, cv ? 1 : 0)
-		case:      gen_error(pos, "backend: unsupported constant"); mov_ri(x86.RAX, 0)
+		switch cv in e.value {
+		case i64:    mov_ri(x86.RAX, cv)
+		case bool:   mov_ri(x86.RAX, cv ? 1 : 0)
+		case f64:    mov_ri(x86.RAX, transmute(i64)cv)
+		case string: mov_ri(x86.RAX, i64(intern_string(cv)))
+		case:
+			gen_error(pos, "backend: unsupported constant"); mov_ri(x86.RAX, 0)
 		}
 		push_r(x86.RAX)
 	case .Var:

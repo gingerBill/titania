@@ -17,72 +17,78 @@ module = "module" ident ";" [import_list] decl_sequence
          ["begin" stmt_sequence] "end" [";"].
 
 import_list = "import" import_decl {"," import_decl} ";".
+import_decl = ident [":=" ident].             /* local_name := actual_module */
+
 decl_sequence = ["const" {const_decl ";"}]
                 ["type"  {type_decl  ";"}]
                 ["var"   {var_decl   ";"}]
                 [{proc_decl          ";"}].
 
 const_decl = ident "=" const_expr.
-type_decl = ident "="" struct_type.
-var_decl = ident_list ":" type.
+type_decl  = ident "=" struct_type.
+var_decl   = ident_list ":" type.
 
 proc_decl = "proc" ident [formal_parameters] ";" proc_body.
 proc_body = decl_sequence ["begin" stmt_sequence] ["return" expr] "end".
 
+formal_parameters = "(" [fp_section {";" fp_section} [";"]] ")".
+fp_section        = ["var"] ident_list ":" formal_type.
+formal_type       = ["[" "]"] qual_ident.
 
-const_expr = expr.
-expr = simple_expr {relation simple_expr}.
+type         = qual_ident | struct_type.
+struct_type  = array_type | record_type | pointer_type | proc_type.
+array_type   = "[" const_expr {"," const_expr} "]" type.
+record_type  = "record" [field_list_sequence] "end".
+pointer_type = "^" type.
+proc_type    = "proc" formal_parameters.
 
-simple_expr = ["+" | "-"] unary_expr {add_operator unary_expr}.
-unary_expr = ["+" | "-"] term.
-term = factor {mul_operator factor}.
+field_list_sequence = field_list {";" field_list} [";"].
+field_list          = ["using"] ident_list ":" type.
 
-factor = integer | real | string | nil | true | false | set |
-         "(" expr ")" | "not" expr | designator.
+const_expr  = expr.
+expr        = simple_expr [relation simple_expr].
+simple_expr = unary_expr {add_operator unary_expr}.
+unary_expr  = ["+" | "-"] term.
+term        = factor {mul_operator factor}.
+factor      = integer | real | string | nil | true | false | set |
+              "(" expr ")" | "not" factor | designator.
 
+set     = "{" [element {"," element} [","]] "}".
 element = expr [".." expr].
 
-ident_list = ident {"," ident}.
-qual_ident = [ident "."] ident.
+designator = qual_ident {selector}.
+selector   = "." ident |
+             "[" expr_list "]" |
+             "^" |
+             "(" [expr_list] ")".
 
-struct_type = array_type | record_type | pointer_type | proc_type.
-array_type = "["" const_expr {"," const_expr} "]" type.
-record_type = "record" ["(" qual_ident ")"] [field_list_sequence] "end".
-pointer_type = "^" type.
-proc_type = "proc" formal_parameters.
-field_list = ["using"] ident_list ":" type.
-formal_parmeters = "(" [fp_section {";" fp_section}] [";"] ")".
-formal_type = "[" "]" qual_ident.
+ident_list = ident {"," ident}.
+expr_list  = expr {"," expr}.
+qual_ident = ident ["." ident].
 
 stmt_sequence = stmt {";" stmt} [";"].
-stmt = [assignment | proc_call | if_stmt | case_stmt | while_stmt | repeat_stmt | for_stmt ].
+stmt = [assignment | proc_call | if_stmt | case_stmt |
+        while_stmt | repeat_stmt | for_stmt].
 
-assignment = designator ":=" expr
+assignment = designator ":=" expr.
+proc_call  = designator.              /* a designator whose final selector is a call */
 
 if_stmt = "if" expr "then" stmt_sequence
           {"elseif" expr "then" stmt_sequence}
           ["else" stmt_sequence]
           "end".
 
-case_stmt = "case" expr "of" case {"|" case} "end".
-case = [case_label_list ":" stmt_sequence].
-case_list = label_range {"," label_range}.
+case_stmt   = "case" expr "of" case {"|" case} "end".
+case        = case_list ":" stmt_sequence.
+case_list   = label_range {"," label_range}.
 label_range = label [".." label].
-label = integer | string | qual_ident.
+label       = integer | string | qual_ident.
 
 while_stmt = "while" expr "then" stmt_sequence
              {"elseif" expr "then" stmt_sequence}
              "end".
 repeat_stmt = "repeat" stmt_sequence "until" expr.
-for_stmt = "for" ident ":=" expr "to" expr ["by" const_expr] "then" stmt_sequence "end".
-
-
-designator = qual_ident {selector}.
-selector = "." ident |
-           "[" expr_list "]" |
-           "^" |
-           "(" [expr_list] ")".
-expr_list = expr {"," expr}.
+for_stmt    = "for" ident ":=" expr "to" expr ["by" const_expr] "then" stmt_sequence "end".
 
 
 add_operator = "+" | "-" | "xor" | "or".
@@ -90,15 +96,26 @@ mul_operator = "*" | "/" | "%"   | "and".
 relation     = "=" | "<>" | "<" | "<=" | ">" | ">=" | "in" | "is".
 ```
 
-### Keywords
-```
-and    else    if      nil   record  true   while
-begin  elseif  import  not   repeat  type   xor
-by     end     in      of    return  until
-case   false   is      or    then    using
-const  for     module  proc  to      var
-```
+Notes:
+ * `expr` permits at most one `relation`, so relational operators are
+   non-associative (e.g. `a < b < c` is not valid).
+ * A `case` expression must be an integer-like value (`byte`, `char`, `int`);
+   its labels are constant, may be single values or `lo .. hi` ranges, and must
+   not overlap. `case` has no `else`; if no label matches, the statement is
+   skipped.
+ * There is no `char` literal: a single-character constant is written as a
+   `string` and converted with `ord`/`chr`.
+ * A `var` parameter (`fp_section` beginning with `var`) is passed by reference;
+   assigning to it updates the caller's argument.
 
+### Keywords
+
+```
+and     begin   by      case    const   else    elseif  end
+false   for     if      import  in      is      module  nil
+not     or      proc    record  repeat  return  switch  then
+to      true    type    until   using   var     while   xor
+```
 
 ### Operators
 
@@ -106,8 +123,7 @@ const  for     module  proc  to      var
 +    .   (   )   =  <>
 -    ,   [   ]   <  <=
 *    ;   {   }   >  >=
-/    |   :=  :   ..
-%    ^
+/    %   :=  :   .. ^
 ```
 
 ### Tokenizer Semicolon Insertion Rules
@@ -115,7 +131,8 @@ const  for     module  proc  to      var
 When a newline is seen after the following token kind, a semicolon is inserted, otherwise no semicolon is inserted:
 
 * Identifiers
-* Integer, Real, String, Boolean literals
+* Integer, Real, and String literals
+* `true` and `false`
 * `nil`
 * `^`
 * `)`, `]`, `}`
@@ -124,35 +141,71 @@ When a newline is seen after the following token kind, a semicolon is inserted, 
 
 ### Built-in Procedures
 
-Note: These will be added to as the compiler develops
+Note: These will be added to as the compiler develops.
 
+Notation:
+        * `x, y` are values
+        * `s` a string
+        * `i, n` integers
+        * `r` a real
+        * `p` a pointer
+        * `set_var` a `set` variable
+        * `T` a type.
+
+Parameters written `var` must be addressable (a variable, field, indexed element, or `p^`).
+
+#### Arithmetic and bit manipulation
 ```
-abs(x)            - absolute value of
-lsh(x, y)         - logical shift left
-ash(x, y)         - arithmetic shift right
-ror(x, y)         - rotate right
-chr(i)            - convert int to char
-ord(c)            - convert char to int
-inc(x)            - x := x + 1
-inc(x, y)         - x := x + y
-dec(x)            - x := x - 1
-dec(x, y)         - x := x - y
-incl(x, y)        - include y in set x
-excl(x, y)        - exclude y in set x
-odd(x)            - x % 2 = 0
-floor(x)          - round-down for real
-ceil(x)           - round-up   for real
-assert(cond)      - assert when cond is false
-new(ptr)          - allocate memory
-delete(ptr)       - free memory
-addr(x)           - address of addressable memory
-size_of(x)        - size of the type of 'x'
-align_of(x)       - alignment of the type of 'x'
-copy(dst, src, n) - non-overlapping memory copying from `src` to `dst` of `n` bytes
-print(...)        - variadic print without newline
-println(...)      - variadic print with newline
-len(x)            - length of an array 'x'
+abs(x)        - absolute value of x; result has the same numeric type as x
+lsl(x, n)     - logical shift of x left by n (x and n share an integer type)
+asr(x, n)     - arithmetic shift of x right by n
+ror(x, n)     - 64-bit rotate of x right by n
+odd(x)        - true if the integer x is odd (x % 2 <> 0); result is bool
+floor(r)      - largest whole number <= r, returned as a real
+ceil(r)       - smallest whole number >= r, returned as a real
+```
 
-pack(var x: real; n: int)        -
-unpack(var x: real; var n: int)  -
+#### Conversions (characters)
+```
+chr(i)        - the char whose code point is the int i
+ord(s)        - the int code point of the single-character string constant s
+```
+
+#### In-place update
+```
+inc(var x)        - x := x + 1        (x an addressable numeric)
+inc(var x, y)     - x := x + y
+dec(var x)        - x := x - 1
+dec(var x, y)     - x := x - y
+incl(var set_var, i)  - include element i in the set set_var
+excl(var set_var, i)  - exclude element i from the set set_var
+```
+
+#### Memory
+```
+new(var p)        - allocate zeroed storage for p's pointee and store it in p
+delete(p)         - free the storage p points at
+addr(var x)       - the address of x, as a pointer to x's type (^T)
+copy(dst, src, n) - copy n bytes from pointer src to pointer dst (non-overlapping)
+```
+
+#### Reflection (compile-time constants)
+```
+size_of(x)    - size in bytes of the type of x (x may be a value or a type)
+align_of(x)   - alignment in bytes of the type of x
+len(a)        - number of elements in the array a
+```
+
+#### I/O
+```
+print(...)    - variadic; print each argument with no trailing newline
+println(...)  - variadic; print each argument, then a newline after the last
+                (a set is printed as its members, e.g. {0, 3, 5})
+```
+
+#### Real-number decomposition
+```
+pack(var r: real; n: int)         - r := r * 2^n          (scale by a power of two)
+unpack(var r: real; var n: int)   - split r into a mantissa and exponent so that
+                                     r := mantissa (1.0 <= r < 2.0) and n := exponent
 ```
