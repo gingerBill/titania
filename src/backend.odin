@@ -841,14 +841,28 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 			}
 			pop_r(x86.RDX) // 2nd printf arg (MS varargs: also the GPR half)
 			addr := g.imp.fmts[.int]
-			if is_real(p.type) {
+			switch {
+			case is_real(p.type):
 				emit(x86.inst_r_r(.MOVQ, x86.XMM1, x86.RDX)) // varargs: FP half in XMM1
 				addr = is_last ? g.imp.fmts[.real_nl] : g.imp.fmts[.real]
-			} else if is_string(p.type) {
+			case is_string(p.type):
 				addr = is_last ? g.imp.fmts[.str_nl] : g.imp.fmts[.str]
-			} else if is_pointer(p.type) {
+			case is_pointer(p.type):
 				addr = is_last ? g.imp.fmts[.ptr_nl] : g.imp.fmts[.ptr]
-			} else {
+			case p.type == t_bool:
+				// print booleans as "true"/"false" (not 1/0) via the %s format:
+				// select the string pointer based on the value in RDX (0 or 1).
+				false_lbl := fwd_label()
+				done_lbl  := fwd_label()
+				emit(x86.inst_r_r(.TEST, x86.RDX, x86.RDX))
+				emit(x86.inst_rel(.JE, false_lbl, 4)) // value == 0 -> "false"
+				mov_ri(x86.RDX, i64(g.imp.fmts[.true_str]))
+				emit(x86.inst_rel(.JMP, done_lbl, 4))
+				set_label(false_lbl)
+				mov_ri(x86.RDX, i64(g.imp.fmts[.false_str]))
+				set_label(done_lbl)
+				addr = is_last ? g.imp.fmts[.str_nl] : g.imp.fmts[.str]
+			case:
 				addr = is_last ? g.imp.fmts[.int_nl] : g.imp.fmts[.int]
 			}
 			mov_ri(x86.RCX, i64(addr))

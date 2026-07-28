@@ -135,6 +135,8 @@ Fmt_Kind :: enum {
 	str_nl,
 	ptr,
 	ptr_nl,
+	false_str,
+	true_str,
 
 	assert,
 
@@ -154,6 +156,9 @@ fmt_kind_formats := [Fmt_Kind]string{
 	.str_nl  = "%s\n",
 	.ptr     = "0x%016llx",
 	.ptr_nl  = "0x%016llx\n",
+
+	.false_str = "false",
+	.true_str  = "true",
 
 	.assert  = "assertion failed\n",
 
