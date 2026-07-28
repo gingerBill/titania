@@ -67,7 +67,7 @@ expr_list  = expr {"," expr}.
 qual_ident = ident ["." ident].
 
 stmt_sequence = stmt {";" stmt} [";"].
-stmt = [assignment | proc_call | if_stmt | case_stmt |
+stmt = [assignment | proc_call | if_stmt | switch_stmt |
         while_stmt | repeat_stmt | for_stmt].
 
 assignment = designator ":=" expr.
@@ -78,8 +78,8 @@ if_stmt = "if" expr "then" stmt_sequence
           ["else" stmt_sequence]
           "end".
 
-case_stmt   = "case" expr "of" case {"|" case} "end".
-case        = case_list ":" stmt_sequence.
+switch_stmt = "switch" expr "then" { case } "end".
+case        = "case" case_list ":" stmt_sequence.
 case_list   = label_range {"," label_range}.
 label_range = label [".." label].
 label       = integer | string | qual_ident.
