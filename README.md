@@ -50,17 +50,19 @@ expr        = simple_expr [relation simple_expr].
 simple_expr = unary_expr {add_operator unary_expr}.
 unary_expr  = ["+" | "-"] term.
 term        = factor {mul_operator factor}.
-factor      = integer | real | string | nil | true | false | set |
-              "(" expr ")" | "not" factor | designator.
+factor      = integer | real | string
+            | nil | true | false
+            | set_expr
+            | "(" expr ")" | "not" factor | designator.
 
-set     = "{" [element {"," element} [","]] "}".
-element = expr [".." expr].
+set_expr = "{" [set_element {"," set_element} [","]] "}".
+set_element  = expr [".." expr].
 
 designator = qual_ident {selector}.
-selector   = "." ident |
-             "[" expr_list "]" |
-             "^" |
-             "(" [expr_list] ")".
+selector   = "." ident
+           | "[" expr_list "]"
+           | "^"
+           | "(" [expr_list] ")".
 
 ident_list = ident {"," ident}.
 expr_list  = expr {"," expr}.
