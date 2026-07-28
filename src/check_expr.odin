@@ -281,10 +281,10 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 			o.value = nil
 			o.mode = .RValue
 			o.type = t_bool
-			if !operand_is_value(rhs) && rhs.type.kind != .Set {
+			if !operand_is_value(rhs) || rhs.type.kind != .Set {
 				error(c, rhs.expr.pos, "expected a set value for 'in', got %s", type_to_string(rhs.type))
 			}
-			if !operand_is_value(lhs) && !type_is_integer_like(lhs.type) {
+			if !operand_is_value(lhs) || !type_is_integer_like(lhs.type) {
 				error(c, lhs.expr.pos, "expected an integer-like value to test against a test for 'in', got %s", type_to_string(lhs.type))
 			}
 			return

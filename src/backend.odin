@@ -547,6 +547,14 @@ gen_binary_internal :: proc(op: Token_Kind, pos: Pos, op_text := "") {
 		emit(x86.inst_r_r(.CMP, x86.RAX, x86.RCX))
 		emit(x86.inst_r(m, x86.AL))
 		emit(x86.inst_r_r(.MOVZX, x86.RAX, x86.AL))
+	case .In:
+		// `element` of the mask, i.e. (set >> element) & 1.
+		// Here RAX = element (lhs), RCX = set (rhs).
+		emit(x86.inst_r_r(.MOV, x86.RDX, x86.RCX)) // RDX = set
+		emit(x86.inst_r_r(.MOV, x86.RCX, x86.RAX)) // RCX = element (CL = shift count)
+		emit(x86.inst_r_r(.SHR, x86.RDX, x86.CL))  // RDX = set >> element
+		emit(x86.inst_r_r(.MOV, x86.RAX, x86.RDX))
+		emit(x86.inst_r_i(.AND, x86.RAX, 1, 4))    // RAX = bit 0 -> bool (0 or 1)
 	case:
 		gen_error(pos, "backend: unsupported operator '%s'", op_text)
 	}

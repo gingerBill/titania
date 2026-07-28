@@ -129,8 +129,12 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		if len(parameters) > 1 {
 			x, y: Operand
 			check_expr(c, &x, parameters[0])
+			check_expr(c, &y, parameters[1])
 			if !type_is_integer_like(x.type) {
-				error(c, o.expr.pos, "expected an integer-like value to '%s', got %s", name, type_to_string(x.type))
+				error(c, x.expr.pos, "expected an integer-like value to '%s', got %s", name, type_to_string(x.type))
+			}
+			if !type_is_integer_like(y.type) {
+				error(c, y.expr.pos, "expected an integer-like value to '%s', got %s", name, type_to_string(y.type))
 			}
 			o.type = x.type
 
@@ -144,7 +148,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 					case .ror:
 						n :: 64
 						s := u64(b)
-						o.value = a << (n-s) | a >> (s)
+						o.value = i64(u64(a) << (n-s) | u64(a) >> (s))
 					}
 					o.mode = .Const
 				}
@@ -251,7 +255,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 				#partial switch v in p.value {
 				case i64:
 					o.mode = .Const
-					o.value = v % 2 == 0
+					o.value = v % 2 != 0
 					o.type = t_bool
 				case:
 					error(c, o.expr.pos, "expected a integer-like value to '%s', got %s", name, type_to_string(p.type))
