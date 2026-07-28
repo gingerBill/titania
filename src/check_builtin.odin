@@ -402,6 +402,21 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		for param in parameters {
 			p: Operand
 			check_expr(c, &p, param)
+			if p.type == nil  {
+				continue
+			}
+			switch p.type.kind {
+			case .Invalid: // ignore
+			case .Nil:
+			case .Bool, .Char, .Int, .Real, .Byte, .Set, .Pointer:
+				// oaky to print
+			case .Array:
+				if !is_string(p.type) {
+					error(c, p.expr.pos, "a non-string array value cannot be printed")
+				}
+			case .Record: error(c, p.expr.pos, "a record value cannot be printed")
+			case .Proc:   error(c, p.expr.pos, "a procedure value cannot be printed")
+			}
 		}
 
 

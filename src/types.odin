@@ -151,8 +151,13 @@ type_size_of :: proc(t: ^Type) -> i64 {
 
 @(require_results)
 type_align_of :: proc(t: ^Type) -> i64 {
-	if record, ok := t.variant.(^Type_Record); ok {
-		type_init_offsets_for_record(record)
+	switch v in t.variant {
+	case ^Type_Record:
+		type_init_offsets_for_record(v)
+	case ^Type_Pointer, ^Type_Proc:
+		t.align = 8
+	case ^Type_Array:
+		t.align = type_align_of(v.elem)
 	}
 	assert(t.align > 0)
 	return t.align
@@ -170,6 +175,7 @@ type_new :: proc(arena: ^virtual.Arena, kind: Type_Kind, $T: typeid) -> ^T {
 @(require_results)
 type_new_string :: proc(arena: ^virtual.Arena, len: int) -> ^Type {
 	t := type_new(arena, .Array, Type_Array)
+	t.align = 1
 	t.elem = t_char
 	t.counts, _ = virtual.make_slice(arena, []i64, 1)
 	t.counts[0] = i64(len)
@@ -179,6 +185,7 @@ type_new_string :: proc(arena: ^virtual.Arena, len: int) -> ^Type {
 @(require_results)
 type_new_pointer :: proc(arena: ^virtual.Arena, elem: ^Type) -> ^Type {
 	t := type_new(arena, .Pointer, Type_Pointer)
+	t.align = 8
 	t.elem = elem
 	return t
 }

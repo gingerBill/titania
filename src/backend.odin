@@ -125,25 +125,6 @@ gen_inline_mem_copy :: proc(size: i64) {
 	}
 }
 
-@(require_results)
-record_field_offset :: proc(lhs_type: ^Type, field_ent: ^Entity) -> (offset: i64, found: bool) {
-	t := type_deref(lhs_type)
-	if rec, ok := t.variant.(^Type_Record); ok {
-		type_init_offsets_for_record(rec)
-		for f in rec.fields {
-			offset := f.offset
-			if f.entity == field_ent {
-				return offset, true
-			}
-			if .Using in f.entity.flags {
-				offset += record_field_offset(f.entity.type, field_ent) or_continue
-				return offset, true
-			}
-		}
-	}
-	return 0, false
-}
-
 // Push the base address of an aggregate that a selector/index applies to.
 // Auto-dereferences a pointer base (Oberon `p.field`).
 gen_aggregate_base_addr :: proc(base: ^Ast_Expr) {
@@ -174,16 +155,71 @@ gen_entity_addr :: proc(ent: ^Entity, pos: Pos) {
 	push_r(x86.RAX)
 }
 
-// Push the address of `base.field`, auto-dereferencing a pointer base.
-gen_field_addr :: proc(base: ^Ast_Expr, field_ent: ^Entity) {
-	gen_aggregate_base_addr(base)
-	off, ok := record_field_offset(base.type, field_ent)
-	if !ok {
-		gen_error(field_ent.pos, "backend: invalid record field offset calculation")
+Field_Step :: struct {
+	offset: i64,
+	deref:  bool,
+}
+
+// Collect the path from a record of type `rec_type` down to `field_ent`,
+// following `using` embeddings — value- or pointer-embedded, to any depth.
+// Steps are appended deepest-first (so callers emit them in reverse).
+// Returns false if the field is not reachable from this type.
+@(require_results)
+record_field_path :: proc(rec_type: ^Type, field_ent: ^Entity, steps: ^[dynamic]Field_Step) -> bool {
+	t := type_deref(rec_type)
+	rec := t.variant.(^Type_Record) or_return
+	type_init_offsets_for_record(rec)
+
+	// A direct member is reached by a plain offset, with no dereference.
+	for f in rec.fields {
+		if f.entity == field_ent {
+			append(steps, Field_Step{offset = f.offset})
+			return true
+		}
 	}
-	pop_r(x86.RAX)
-	if off != 0 {
-		emit(x86.inst_r_i(.ADD, x86.RAX, i64(off), 4))
+	// Otherwise descend through whichever `using` field (transitively) holds it.
+	// A pointer embedding contributes a dereference; a value embedding does not.
+	for f in rec.fields {
+		if .Using not_in f.entity.flags {
+			continue
+		}
+		if record_field_path(f.entity.type, field_ent, steps) {
+			append(steps, Field_Step{offset = f.offset, deref = f.entity.type.kind == .Pointer})
+			return true
+		}
+	}
+	return false
+}
+
+// Push the address of `base.field`, auto-dereferencing a pointer base and
+// following any `using` embeddings (value- or pointer-embedded) to the field.
+gen_field_addr :: proc(base: ^Ast_Expr, field_ent: ^Entity) {
+	gen_aggregate_base_addr(base) // pushes the address of the base record
+
+	steps: [dynamic]Field_Step
+	defer delete(steps)
+	if !record_field_path(base.type, field_ent, &steps) {
+		gen_error(field_ent.pos, "backend: could not resolve record field '%s'", field_ent.name)
+	}
+
+	pop_r(x86.RAX) // base record address
+
+	// Steps are recorded deepest-first, so walk them in reverse (outermost -> innermost).
+	// Constant offsets between dereferences are coalesced so a value-only path emits a single ADD, matching the non-`using` case.
+	acc := i64(0)
+	#reverse for step in steps {
+		acc += step.offset
+		if step.deref {
+			if acc != 0 {
+				emit(x86.inst_r_i(.ADD, x86.RAX, acc, 4))
+			}
+			// follow the embedded pointer: RAX = [RAX]
+			emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_only(x86.RAX), 8))
+			acc = 0
+		}
+	}
+	if acc != 0 {
+		emit(x86.inst_r_i(.ADD, x86.RAX, acc, 4))
 	}
 	push_r(x86.RAX)
 }
