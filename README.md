@@ -25,7 +25,7 @@ decl_sequence = { ["const" {const_decl ";"}]
                   [{proc_decl          ";"}] }.
 
 const_decl = ident "=" const_expr.
-type_decl  = ident "=" struct_type.
+type_decl  = ident ":" struct_type.
 var_decl   = ident_list ":" type.
 
 proc_decl = "proc" ident [formal_parameters] ";" proc_body.
