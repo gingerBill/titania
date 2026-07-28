@@ -370,7 +370,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 
 			if erhs, ok := element.rhs.?; ok {
 				check_expr(c, &rhs, erhs)
-				if !type_is_integer_like(lhs.type) {
+				if !type_is_integer_like(rhs.type) {
 					error(c, rhs.expr.pos, "expected an integer-like value for a set expression, got %s", type_to_string(rhs.type))
 				}
 			}
