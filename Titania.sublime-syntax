@@ -19,7 +19,7 @@ contexts:
     - include: builtins
 
   keywords:
-    - match: '\b(array|begin|case|const|else|elseif|end|for|if|import|module|of|pointer|proc|record|repeat|return|then|type|until|using|var|while|xor)\b'
+    - match: '\b(and|begin|by|case|const|else|elseif|end|false|for|if|import|in|is|module|nil|not|or|proc|record|repeat|return|switch|then|to|true|type|until|using|var|while|xor)\b'
       scope: keyword.control.titania
     - match: '\b(and|by|in|not|or|to)\b'
       scope: keyword.operator.titania
@@ -27,7 +27,7 @@ contexts:
       scope: constant.language.titania
 
   builtins:
-    - match: '\b(abs|lsh|ash|ror|chr|ord|inc|dec|incl|excl|odd|floor|ceil|assert|new|delete|addr|size_of|align_of|copy|print|println|len)\b'
+    - match: '\b(abs|addr|align_of|asr|assert|ceil|chr|copy|dec|delete|excl|exit|floor|inc|incl|len|lsl|new|odd|ord|pack|print|println|ror|size_of|unpack)\b'
       scope: variable.function.titania support.function.builtin.titania
 
 
