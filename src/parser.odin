@@ -198,12 +198,12 @@ parse_const_decl :: proc(p: ^Parser, tok: Token) -> ^Ast_Const_Decl {
 	decl.expr = parse_const_expr(p)
 	return decl
 }
-// type_decl = ident "="" struct_type
+// type_decl = ident ":" struct_type
 parse_type_decl :: proc(p: ^Parser, tok: Token) -> ^Ast_Type_Decl {
 	decl := ast_new(p.module, tok.pos, Ast_Type_Decl)
 	decl.tok = tok
 	decl.name = parse_ident(p)
-	expect_token(p, .Equal)
+	expect_token(p, .Colon)
 	decl.type = parse_struct_type(p)
 	return decl
 }
