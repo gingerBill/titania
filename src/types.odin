@@ -91,6 +91,14 @@ is_string :: proc(t: ^Type) -> bool {
 }
 
 @(require_results)
+is_pointer :: proc(t: ^Type) -> bool {
+	if t == nil {
+		return false
+	}
+	return t.kind == .Pointer
+}
+
+@(require_results)
 is_aggregate :: proc(t: ^Type) -> bool {
 	return t != nil && (t.kind == .Record || t.kind == .Array)
 }

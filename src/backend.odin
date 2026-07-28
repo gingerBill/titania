@@ -790,6 +790,8 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 				addr = is_last ? g.imp.fmts[.real_nl] : g.imp.fmts[.real]
 			} else if is_string(p.type) {
 				addr = is_last ? g.imp.fmts[.str_nl] : g.imp.fmts[.str]
+			} else if is_pointer(p.type) {
+				addr = is_last ? g.imp.fmts[.ptr_nl] : g.imp.fmts[.ptr]
 			} else {
 				addr = is_last ? g.imp.fmts[.int_nl] : g.imp.fmts[.int]
 			}
