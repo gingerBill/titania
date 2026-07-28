@@ -348,6 +348,50 @@ callee_entity :: proc(e: ^Ast_Expr) -> ^Entity {
 	return nil
 }
 
+// Build a `set` value (a 64-bit bitmask) at run time and push it. Each element
+// is either a single member `x` (which sets bit x) or an inclusive range
+// `lo..hi` (which sets bits lo..hi). Elements may be non-constant, so the mask
+// is accumulated on the operand stack across the element evaluations (each of
+// which is itself stack-balanced), rather than in a fixed register.
+gen_set_expr :: proc(v: ^Ast_Set_Expr) {
+	push_const_int(0, v.open.pos) // accumulator: the empty set {}
+
+	for element in v.elements {
+		if erhs, ok := element.rhs.?; ok {
+			// range lo..hi  ->  (~0 << lo) & (~0 >> (63 - hi))
+			gen_expr(element.lhs) // push lo
+			gen_expr(erhs)        // push hi
+			pop_r(x86.RCX)        // RCX = hi
+			// high mask in RDX = all-ones >> (63 - hi)  -> bits [0, hi]
+			mov_ri(x86.RDX, -1)
+			mov_ri(x86.RAX, 63)
+			emit(x86.inst_r_r(.SUB, x86.RAX, x86.RCX)) // RAX = 63 - hi
+			emit(x86.inst_r_r(.MOV, x86.RCX, x86.RAX)) // CL = 63 - hi
+			emit(x86.inst_r_r(.SHR, x86.RDX, x86.CL))
+			// low mask in RAX = all-ones << lo          -> bits [lo, 63]
+			pop_r(x86.RCX)        // RCX = lo  (CL = shift count)
+			mov_ri(x86.RAX, -1)
+			emit(x86.inst_r_r(.SHL, x86.RAX, x86.CL))
+			// element mask = low & high                 -> bits [lo, hi]
+			emit(x86.inst_r_r(.AND, x86.RAX, x86.RDX))
+			push_r(x86.RAX)
+		} else {
+			// single member x  ->  1 << x
+			gen_expr(element.lhs) // push x
+			pop_r(x86.RCX)        // RCX = x  (CL = shift count)
+			mov_ri(x86.RAX, 1)
+			emit(x86.inst_r_r(.SHL, x86.RAX, x86.CL))
+			push_r(x86.RAX)
+		}
+
+		// accumulator |= element mask
+		pop_r(x86.RAX) // element mask
+		pop_r(x86.RCX) // accumulator
+		emit(x86.inst_r_r(.OR, x86.RAX, x86.RCX))
+		push_r(x86.RAX)
+	}
+}
+
 
 gen_expr :: proc(e: ^Ast_Expr) {
 	switch v in e.value {
@@ -423,7 +467,11 @@ gen_expr :: proc(e: ^Ast_Expr) {
 			mov_ri(x86.RAX, 0)
 			push_r(x86.RAX)
 		}
-	case ^Ast_Bad_Expr, ^Ast_Set_Expr:
+
+	case ^Ast_Set_Expr:
+		gen_set_expr(v)
+
+	case ^Ast_Bad_Expr:
 		gen_error(e.pos, "backend: unsupported expression")
 		mov_ri(x86.RAX, 0)
 		push_r(x86.RAX)
