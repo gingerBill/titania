@@ -93,7 +93,7 @@ Ast_Stmt :: struct {
 	pos: Pos,
 	variant: union #shared_nil {
 		^Ast_If_Stmt,
-		^Ast_Case_Stmt,
+		^Ast_Switch_Stmt,
 		^Ast_While_Stmt,
 		^Ast_Repeat_Stmt,
 		^Ast_For_Stmt,
@@ -113,20 +113,21 @@ Ast_If_Stmt :: struct {
 	else_stmt:    Maybe(^Ast_Stmt_Sequence)
 }
 
-Ast_Case_Stmt :: struct {
+Ast_Switch_Stmt :: struct {
 	using base: Ast_Stmt,
-	tok_case: Token, // "case"
-	cond:     ^Ast_Expr,
-	tok_of:   Token, // "of"
+	tok_switch: Token, // "switch"
+	cond:       ^Ast_Expr,
+	tok_then:   Token, // "then"
 
 	cases: [dynamic]^Ast_Case,
 }
 
 Ast_Case :: struct {
 	pos: Pos,
-	labels: [dynamic]^Ast_Label_Range,
-	tok:    Token, // ":"
-	body:   ^Ast_Stmt_Sequence,
+	tok_case:  Token, // "case"
+	labels:    [dynamic]^Ast_Label_Range,
+	tok_colon: Token, // ":"
+	body:      ^Ast_Stmt_Sequence,
 }
 
 Ast_Label_Range :: struct {

@@ -31,6 +31,25 @@ check_cond :: proc(c: ^Checker_Context, expr: ^Ast_Expr) {
 	check_is_boolean(c, &cond)
 }
 
+
+// A case label must be a compile-time constant with an integer-like value
+// (byte/char/int all fold to an i64 in this compiler's flat integer model).
+@(require_results)
+check_case_label :: proc(c: ^Checker_Context, expr: ^Ast_Expr) -> (val: i64, ok: bool) {
+	o: Operand
+	check_expr(c, &o, expr)
+	if o.mode != .Const {
+		error(c, expr.pos, "case label must be a constant expression")
+		return 0, false
+	}
+	v, is_int := o.value.(i64)
+	if !is_int {
+		error(c, expr.pos, "case label must be an integer-like constant, got %s", type_to_string(o.type))
+		return 0, false
+	}
+	return v, true
+}
+
 check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 	switch s in stmt.variant {
 	case ^Ast_If_Stmt:
@@ -43,10 +62,43 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 			check_stmt_sequence(c, es)
 		}
 
-	case ^Ast_Case_Stmt:
+	case ^Ast_Switch_Stmt:
 		cond: Operand
 		check_expr(c, &cond, s.cond)
-		panic("TODO: case stmt")
+		if cond.type != nil && !type_is_integer_like(cond.type) {
+			error(c, s.cond.pos, "case expression must be an integer-like type (byte, char, or int), got %s", type_to_string(cond.type))
+		}
+
+		// Track the inclusive [lo, hi] spans already used so overlaps are caught.
+		seen: [dynamic][2]i64
+		defer delete(seen)
+
+		for kase in s.cases {
+			for label in kase.labels {
+				lo, lo_ok := check_case_label(c, label.lo)
+				hi := lo
+				if hi_expr, has_hi := label.hi.?; has_hi {
+					h, hi_ok := check_case_label(c, hi_expr)
+					if lo_ok && hi_ok {
+						if h < lo {
+							error(c, label.pos, "empty case label range: lower bound %d exceeds upper bound %d", lo, h)
+						} else {
+							hi = h
+						}
+					}
+				}
+				if lo_ok {
+					for span in seen {
+						if lo <= span[1] && span[0] <= hi {
+							error(c, label.pos, "case label %d..%d overlaps an earlier label", lo, hi)
+							break
+						}
+					}
+					append(&seen, [2]i64{lo, hi})
+				}
+			}
+			check_stmt_sequence(c, kase.body)
+		}
 
 	case ^Ast_While_Stmt:
 		check_cond(c, s.cond)

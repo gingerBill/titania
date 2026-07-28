@@ -575,7 +575,7 @@ parse_stmt_sequence :: proc(p: ^Parser) -> (seq: ^Ast_Stmt_Sequence) {
 
 	for {
 		#partial switch p.curr_token.kind {
-		case .EOF, .End, .Until, .Else, .Elseif:
+		case .EOF, .End, .Until, .Else, .Elseif, .Case:
 			return
 		}
 
@@ -590,13 +590,13 @@ parse_stmt_sequence :: proc(p: ^Parser) -> (seq: ^Ast_Stmt_Sequence) {
 	return
 }
 
-// stmt = [assignment | proc_call | if_stmt | case_stmt | while_stmt | repeat_stmt | for_stmt ]
+// stmt = [assignment | proc_call | if_stmt | switch_stmt | while_stmt | repeat_stmt | for_stmt ]
 parse_stmt :: proc(p: ^Parser) -> ^Ast_Stmt {
 	#partial switch p.curr_token.kind {
 	case .If:
 		return parse_if_stmt(p)
-	case .Case:
-		return parse_case_stmt(p)
+	case .Switch:
+		return parse_switch_stmt(p)
 	case .While:
 		return parse_while_stmt(p)
 	case .Repeat:
@@ -654,30 +654,34 @@ parse_if_stmt :: proc(p: ^Parser) -> ^Ast_If_Stmt {
 	return stmt
 }
 
-// case_stmt = "case" expr "of" case {"|" case} "end"
-parse_case_stmt :: proc(p: ^Parser) -> ^Ast_Case_Stmt {
-	stmt := ast_new(p.module, p.curr_token.pos, Ast_Case_Stmt)
-	stmt.tok_case = expect_token(p, .Case)
-	stmt.cond     = parse_expr(p)
-	stmt.tok_of   = expect_token(p, .Of)
+// switch_stmt = "switch" expr "then" {case} "end"
+parse_switch_stmt :: proc(p: ^Parser) -> ^Ast_Switch_Stmt {
+	stmt := ast_new(p.module, p.curr_token.pos, Ast_Switch_Stmt)
+	stmt.tok_switch = expect_token(p, .Switch)
+	stmt.cond       = parse_expr(p)
+	stmt.tok_then   = expect_token(p, .Then)
 
 	stmt.cases.allocator = ast_allocator(p.module)
 
 	lhs := pase_case(p)
 	append(&stmt.cases, lhs)
-	for allow_token(p, .Vertical_Bar) {
+	for peek_token(p, .Case) {
 		rhs := pase_case(p)
 		append(&stmt.cases, rhs)
 	}
+
+	expect_token(p, .End)
+
 	return stmt
 }
 
-// case = [case_label_list ":" stmt_sequence]
+// case = "case" case_label_list ":" stmt_sequence
 pase_case :: proc(p: ^Parser) -> ^Ast_Case {
 	c := ast_new(p.module, p.curr_token.pos, Ast_Case)
-	c.labels = parse_case_list(p)
-	c.tok    = expect_token(p, .Colon)
-	c.body   = parse_stmt_sequence(p)
+	c.tok_case  = expect_token(p, .Case)
+	c.labels    = parse_case_list(p)
+	c.tok_colon = expect_token(p, .Colon)
+	c.body      = parse_stmt_sequence(p)
 	return c
 }
 

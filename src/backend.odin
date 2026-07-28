@@ -996,6 +996,67 @@ gen_branch_if_false :: proc(cond: ^Ast_Expr, target: u32) {
 	emit(x86.inst_rel(.JE, target, 4))
 }
 
+// case E of L: S | ... end
+//
+// E is an integer-like value, held in RAX across the whole compare chain. Each
+// clause's labels are constants (single values or lo..hi ranges); we compare
+// the value against each and jump into the matching clause's body. A body only
+// runs after a match and then jumps to `end`, so the chain for later clauses is
+// only reached when no earlier body executed and RAX is therefore still intact.
+// Titania's `case` has no else clause: if nothing matches, the statement is
+// skipped entirely.
+gen_switch :: proc(v: ^Ast_Switch_Stmt) {
+	gen_expr(v.cond)
+	pop_r(x86.RAX) // RAX = value being switched on
+
+	end := fwd_label()
+
+	for kase in v.cases {
+		body := fwd_label()
+		next := fwd_label()
+
+		for label in kase.labels {
+			lo, lo_ok := label.lo.value.(i64)
+			if !lo_ok {
+				gen_error(label.pos, "backend: non-constant case label")
+				continue
+			}
+			if hi_expr, has_hi := label.hi.?; has_hi {
+				hi, hi_ok := hi_expr.value.(i64)
+				if !hi_ok {
+					gen_error(label.pos, "backend: non-constant case label")
+					continue
+				}
+				// match when lo <= RAX <= hi (signed). Only JG is needed: the
+				// lower bound is tested by comparing lo against RAX (swapped).
+				skip := fwd_label()
+				mov_ri(x86.RCX, hi)
+				emit(x86.inst_r_r(.CMP, x86.RAX, x86.RCX))
+				emit(x86.inst_rel(.JG, skip, 4)) // RAX > hi -> not this label
+				mov_ri(x86.RCX, lo)
+				emit(x86.inst_r_r(.CMP, x86.RCX, x86.RAX))
+				emit(x86.inst_rel(.JG, skip, 4)) // lo > RAX -> not this label
+				emit(x86.inst_rel(.JMP, body, 4))
+				set_label(skip)
+			} else {
+				mov_ri(x86.RCX, lo)
+				emit(x86.inst_r_r(.CMP, x86.RAX, x86.RCX))
+				emit(x86.inst_rel(.JE, body, 4))
+			}
+		}
+
+		emit(x86.inst_rel(.JMP, next, 4)) // no label in this clause matched
+		set_label(body)
+		gen_stmts(kase.body)
+		emit(x86.inst_rel(.JMP, end, 4))
+		set_label(next)
+	}
+
+	set_label(end)
+}
+
+
+
 gen_stmts :: proc(seq: ^Ast_Stmt_Sequence) {
 	for st in seq.stmts {
 		gen_stmt(st)
@@ -1033,8 +1094,8 @@ gen_stmt :: proc(s: ^Ast_Stmt) {
 		gen_for(v)
 	case ^Ast_Return_Stmt:
 		gen_return(v)
-	case ^Ast_Case_Stmt:
-		gen_error(v.pos, "backend: case statements are not supported")
+	case ^Ast_Switch_Stmt:
+		gen_switch(v)
 	}
 }
 
