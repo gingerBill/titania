@@ -293,7 +293,7 @@ type_deref :: proc(x: ^Type) -> ^Type {
 @(require_results)
 type_is_numeric :: proc(t: ^Type) -> bool {
 	#partial switch t.kind {
-	case .Byte, .Char, .Int, .Real:
+	case .Byte, .Char, .Int, .Real, .Enum:
 		return true
 	}
 	return false
@@ -303,7 +303,7 @@ type_is_numeric :: proc(t: ^Type) -> bool {
 @(require_results)
 type_is_integer_like :: proc(t: ^Type) -> bool {
 	#partial switch t.kind {
-	case .Byte, .Char, .Int:
+	case .Byte, .Char, .Int, .Enum:
 		return true
 	}
 	return false

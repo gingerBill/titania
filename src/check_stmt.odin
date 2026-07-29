@@ -66,7 +66,7 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 		cond: Operand
 		check_expr(c, &cond, s.cond)
 		if cond.type != nil && !type_is_integer_like(cond.type) {
-			error(c, s.cond.pos, "case expression must be an integer-like type (byte, char, or int), got %s", type_to_string(cond.type))
+			error(c, s.cond.pos, "switch condition must be an integer-like type (byte, char, enum, or int), got %s", type_to_string(cond.type))
 		}
 
 		// Track the inclusive [lo, hi] spans already used so overlaps are caught.

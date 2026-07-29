@@ -1475,6 +1475,12 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 	if ent == nil {
 		return
 	}
+	for decl in pd.decls {
+		if nested, ok := decl.variant.(^Ast_Proc_Decl); ok {
+			gen_proc(nested)
+		}
+	}
+
 	if id, ok := g.proc_labels[ent]; ok {
 		set_label(id)
 	}
@@ -1538,6 +1544,17 @@ gen_entry :: proc(m: ^Module) {
 	emit(x86.inst_none(.RET))
 }
 
+collect_proc_labels :: proc(decls: []^Ast_Decl) {
+	for decl in decls {
+		if pd, ok := decl.variant.(^Ast_Proc_Decl); ok {
+			if pd.name.entity != nil {
+				g.proc_labels[pd.name.entity] = fwd_label()
+			}
+			collect_proc_labels(pd.decls[:])
+		}
+	}
+}
+
 // Entry point of the backend: turn a checked module into a Windows exe.
 @(require_results)
 generate :: proc(m: ^Module, out_filename: string) -> bool {
@@ -1557,13 +1574,7 @@ generate :: proc(m: ^Module, out_filename: string) -> bool {
 
 	g.proc_labels = make(map[^Entity]u32)
 	defer delete(g.proc_labels)
-	for decl in m.decls {
-		if pd, ok := decl.variant.(^Ast_Proc_Decl); ok {
-			if pd.name.entity != nil {
-				g.proc_labels[pd.name.entity] = fwd_label()
-			}
-		}
-	}
+	collect_proc_labels(m.decls[:])
 
 	gen_entry(m)
 	for decl in m.decls {

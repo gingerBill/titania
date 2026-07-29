@@ -177,6 +177,8 @@ check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_
 			return t
 
 		case ^Ast_Proc_Type:
+			scope_insert_entity(c.scope, entity)
+
 			scope_push(c)
 			defer scope_pop(c)
 			t := check_proc_type(c, v.parameters[:])

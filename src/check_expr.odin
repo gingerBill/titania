@@ -257,6 +257,27 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 				case bool:   // ignore
 				}
 			}
+		case .Not:
+			check_expr(c, o, e.expr)
+			if o.type != nil {
+				#partial switch o.type.kind {
+				case .Int, .Byte, .Char, .Enum:
+					// okay
+				case .Bool:
+					// okay
+				case:
+					error(c, e.op.pos, "%s is only supported for numeric types", e.op.text)
+				}
+			}
+
+			if o.mode == .Const {
+				switch v in o.value {
+				case i64:  o.value = ~v
+				case bool: o.value = !v
+				case f64: //ignore
+				case string: // ignore
+				}
+			}
 		case:
 			error(c, e.op.pos, "invalid unary operator, got '%s'", e.op.text)
 		}
