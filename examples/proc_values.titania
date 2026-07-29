@@ -1,0 +1,28 @@
+module proc_values
+
+type
+	Int_Op: proc(a, b: int; var r: int)
+
+proc do_add(a, b: int; var r: int)
+begin
+	r := a + b
+end
+
+proc do_mul(a, b: int var r: int)
+begin
+	r := a * b
+end
+
+var
+	op: Int_Op
+	r: int
+
+begin
+	op := do_add
+	op(6, 7, r)
+	println("add ", r)
+
+	op := do_mul
+	op(6, 7, r)
+	println("mul ", r)
+end

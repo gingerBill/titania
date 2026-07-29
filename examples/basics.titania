@@ -1,0 +1,28 @@
+module basics
+
+const
+	Answer = 42
+
+var
+	x, y: int
+	r: real
+	b: bool
+
+begin
+	println("Hello, Titania!")
+	x := 10
+	y := 3
+	println("sum  ", x + y)
+	println("diff ", x - y)
+	println("prod ", x * y)
+	println("quot ", x / y)
+	println("rem  ", x % y)
+	println("neg  ", -x)
+
+	r := 3.5
+	println("r*2.0 ", r * 2.0)
+
+	b := x > y
+	println("x>y ", b)
+	println("answer ", Answer)
+end

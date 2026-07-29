@@ -1,0 +1,44 @@
+module records
+
+type
+	Point: record
+		x, y: int
+	end
+
+	Node: record
+		value: int
+		next: ^Node
+	end
+
+proc show_point(p: Point)
+begin
+	println("(", p.x, ", ", p.y, ")")
+end
+
+proc move(var p: Point dx, dy: int)
+begin
+	p.x := p.x + dx
+	p.y := p.y + dy
+end
+
+var
+	p: Point
+	head, n: ^Node
+
+begin
+	p.x := 3
+	p.y := 4
+	show_point(p)
+	move(p, 10, 20)
+	show_point(p)
+
+	new(head)
+	head^.value := 1
+	new(n)
+	n^.value := 2
+	head^.next := n
+	println("list ", head^.value, " -> ", head^.next^.value)
+
+	delete(n)
+	delete(head)
+end

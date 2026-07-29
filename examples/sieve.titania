@@ -1,0 +1,24 @@
+module sieve
+
+const
+	N = 63
+
+var
+	sieve: set
+	i, j: int
+
+begin
+	sieve := {2 .. N}
+	i := 2
+	while i * i <= N then
+		if i in sieve then
+			j := i * i
+			while j <= N then
+				excl(sieve, j)
+				j := j + i
+			end
+		end
+		i := i + 1
+	end
+	println("primes <= ", N, ": ", sieve)
+end

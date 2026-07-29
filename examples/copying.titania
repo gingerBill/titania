@@ -1,0 +1,15 @@
+module copying
+
+var
+	a, b: [3]int
+	i: int
+
+begin
+	a[0] := 1
+	a[1] := 2
+	a[2] := 3
+	copy(addr(b), addr(a), size_of(a))
+	for i := 0 to 2 then
+		println("b[", i, "] = ", b[i])
+	end
+end

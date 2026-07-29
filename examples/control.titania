@@ -1,0 +1,40 @@
+module control
+
+var
+	i, sum: int
+
+begin
+	sum := 0
+	for i := 1 to 10 then
+		sum := sum + i
+	end
+	println("sum 1..10 = ", sum)
+
+	for i := 5 to 1 by -1 then
+		print(i, " ")
+	end
+	println("")
+
+	i := 0
+	while i < 3 then
+		println("while ", i)
+		i := i + 1
+	end
+
+	i := 0
+	repeat
+		println("repeat ", i)
+		i := i + 1
+	until i >= 3
+
+	i := 3
+	if i = 1 then
+		println("one")
+	elseif i = 2 then
+		println("two")
+	elseif i = 3 then
+		println("three")
+	else
+		println("many")
+	end
+end

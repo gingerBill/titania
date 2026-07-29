@@ -1,0 +1,20 @@
+module embedding
+
+type
+	Base: record
+		id: int
+	end
+
+	Derived: record
+		name: int
+		using base: Base
+	end
+
+var
+	d: Derived
+
+begin
+	d.id := 100
+	d.name := 7
+	println("id ", d.id, " name ", d.name)
+end

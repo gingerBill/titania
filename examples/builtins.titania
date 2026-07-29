@@ -1,0 +1,37 @@
+module builtins
+
+var
+	i: int
+	r: real
+
+begin
+	println("abs(-7) ", abs(-7))
+	println("odd(5) ", odd(5))
+	println("odd(4) ", odd(4))
+
+	i := 1
+	println("lsl(1,4) ", lsl(i, 4))
+	i := 64
+	println("asr(64,2) ", asr(i, 2))
+	i := 1
+	println("ror(1,1) ", ror(i, 1))
+
+	r := 3.7
+	println("floor ", floor(r))
+	println("ceil  ", ceil(r))
+
+	println("ord(A) ", ord("A"))
+
+	i := 5
+	inc(i)
+	println("inc ", i)
+	dec(i, 3)
+	println("dec ", i)
+
+	println("size_of(int) ", size_of(int))
+	println("align_of(real) ", align_of(real))
+
+	r := 1.0
+	pack(r, 3)
+	println("pack 1.0 by 3 ", r)
+end

@@ -1,0 +1,22 @@
+module nested
+
+proc outer(n: int; var result: int)
+	proc helper(x: int var y: int)
+	begin
+		y := x * 2
+	end
+var
+	tmp: int
+
+begin
+	helper(n, tmp)
+	result := tmp + 1
+end
+
+var
+	r: int
+
+begin
+	outer(10, r)
+	println("outer(10) = ", r)
+end

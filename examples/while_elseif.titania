@@ -1,0 +1,15 @@
+module while_elseif
+
+var
+	x: int
+
+begin
+	x := 3
+	while x > 0 then
+		println("down ", x)
+		x := x - 1
+	elseif x < 0 then
+		println("up ", x)
+		x := x + 1
+	end
+end

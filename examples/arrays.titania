@@ -1,0 +1,15 @@
+module arrays
+
+var
+	a: [5]int
+	i: int
+
+begin
+	for i := 0 to 4 then
+		a[i] := i * i
+	end
+	for i := 0 to 4 then
+		println("a[", i, "] = ", a[i])
+	end
+	println("len ", len(a))
+end

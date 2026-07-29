@@ -1,0 +1,41 @@
+module procs
+
+proc add(a, b: int var result: int)
+begin
+	result := a + b
+end
+
+proc factorial(n: int var result: int)
+var
+	i: int
+begin
+	result := 1
+	for i := 2 to n then
+		result := result * i
+	end
+end
+
+proc fib(n: int var result: int)
+var
+	a, b: int
+begin
+	if n < 2 then
+		result := n
+	else
+		fib(n - 1, a)
+		fib(n - 2, b)
+		result := a + b
+	end
+end
+
+var
+	r: int
+
+begin
+	add(3, 4, r)
+	println("3+4 = ", r)
+	factorial(5, r)
+	println("5! = ", r)
+	fib(10, r)
+	println("fib(10) = ", r)
+end

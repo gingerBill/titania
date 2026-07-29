@@ -1,0 +1,14 @@
+module booleans
+
+var
+	a, b: bool
+
+begin
+	a := true
+	b := false
+	println("and ", a and b)
+	println("or  ", a or b)
+	println("not ", not a)
+	println("xor ", a xor b)
+	println("chain ", (3 < 5) and (5 < 10))
+end

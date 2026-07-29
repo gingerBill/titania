@@ -1,0 +1,12 @@
+module addressing
+
+var
+	x: int
+	p: ^int
+
+begin
+	x := 10
+	p := addr(x)
+	p^ := 20
+	println("x = ", x)
+end

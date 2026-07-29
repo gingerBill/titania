@@ -1,0 +1,23 @@
+module enums
+
+type
+	Color: enum
+		Red
+		Green = 1
+		Blue = 2
+	end
+
+var
+	c: Color
+
+begin
+	c := Blue
+	switch c then
+	case Red:
+		println("red")
+	case Green:
+		println("green")
+	case Blue:
+		println("blue")
+	end
+end
