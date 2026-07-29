@@ -436,8 +436,8 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 		if len(parameters) > 0 {
 			p: Operand
 			check_expr(c, &p, parameters[0])
-			if o.type.kind == .Array {
-				t := o.type.variant.(^Type_Array)
+			if p.type.kind == .Array {
+				t := p.type.variant.(^Type_Array)
 				if t.counts == nil {
 					o.mode = .RValue
 					o.value = nil
@@ -449,7 +449,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 					o.value = total_count
 				}
 			} else {
-				error(c, p.expr.pos, "expected an array value or type to '%s'", name)
+				error(c, p.expr.pos, "expected an array value or type to '%s', got %s", name, type_to_string(p.type))
 			}
 		}
 

@@ -3,10 +3,10 @@ package titania
 import "core:fmt"
 import "core:mem/virtual"
 
-check_type :: proc(c: ^Checker_Context, ast: Ast_Type) -> ^Type {
-	return check_type_internal(c, ast, nil)
+check_type :: proc(c: ^Checker_Context, ast: Ast_Type, allow_no_count_arrays := false) -> ^Type {
+	return check_type_internal(c, ast, nil, allow_no_count_arrays)
 }
-check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_Decl) -> ^Type {
+check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_Decl, allow_no_count_arrays: bool) -> ^Type {
 	entity: ^Entity
 
 	if decl != nil {
@@ -98,7 +98,7 @@ check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_
 					index += 1
 				}
 				t.counts = counts[:index]
-			} else {
+			} else if !allow_no_count_arrays {
 				error(c, v.pos, "array type declaration without any count specified")
 			}
 
@@ -246,7 +246,7 @@ check_proc_type :: proc(c: ^Checker_Context, parameters: []^Ast_Formal_Parameter
 
 	index := 0
 	for fp in parameters {
-		type := check_type(c, fp.type)
+		type := check_type(c, fp.type, allow_no_count_arrays=true)
 		for name in fp.names {
 			e := entity_new(c.arena, .Var, name.tok.text, type, c.scope)
 			e.flags += {.Parameter}

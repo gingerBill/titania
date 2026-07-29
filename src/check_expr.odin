@@ -242,7 +242,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 			check_expr(c, o, e.expr)
 			if o.type != nil {
 				#partial switch o.type.kind {
-				case .Int, .Byte, .Char, .Real:
+				case .Int, .Byte, .Char, .Real, .Enum:
 					// okay
 				case:
 					error(c, e.op.pos, "%s is only supported for numeric types", e.op.text)
