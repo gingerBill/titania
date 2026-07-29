@@ -270,8 +270,13 @@ types_equal :: proc(x, y: ^Type) -> bool {
 		}
 		return true
 	case .Proc:
-		panic("TODO(bill)")
-		// return false
+		a := x.variant.(^Type_Proc) or_return
+		b := y.variant.(^Type_Proc) or_return
+		(len(a.parameters) == len(b.parameters)) or_return
+		for i in 0..<len(a.parameters) {
+			types_equal(a.parameters[i].type, b.parameters[i].type) or_return
+		}
+		return true
 	}
 	return true
 

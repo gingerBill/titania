@@ -412,7 +412,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			switch p.type.kind {
 			case .Invalid: // ignore
 			case .Nil:
-			case .Bool, .Char, .Int, .Real, .Byte, .Set, .Pointer:
+			case .Bool, .Char, .Int, .Real, .Byte, .Set, .Pointer, .Proc:
 				// okay to print
 			case .Enum:
 				// okay to print as an int
@@ -422,7 +422,6 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 				}
 			case .Slice:  error(c, p.expr.pos, "a slice value cannot be printed")
 			case .Record: error(c, p.expr.pos, "a record value cannot be printed")
-			case .Proc:   error(c, p.expr.pos, "a procedure value cannot be printed")
 			}
 		}
 

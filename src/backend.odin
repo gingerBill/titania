@@ -525,6 +525,17 @@ gen_load_entity :: proc(e: ^Entity, pos: Pos) {
 	case .Var:
 		load_var_rax(e)
 		push_r(x86.RAX)
+
+	case .Proc:
+		// Using a procedure as a value yields its code address (a function
+		// pointer): a RIP-relative LEA of the procedure's label.
+		if id, ok := g.proc_labels[e]; ok {
+			emit(x86.inst_r_m(.LEA, x86.RAX, x86.mem_make(x86.MEM_BASE_RIP, x86.NONE, 1, i32(id), x86.NONE), 8))
+		} else {
+			gen_error(pos, "backend: procedure '%s' has no address", e.name)
+			mov_ri(x86.RAX, 0)
+		}
+		push_r(x86.RAX)
 	case:
 		gen_error(pos, "backend: cannot use '%s' as a value", e.name)
 		mov_ri(x86.RAX, 0)
@@ -760,16 +771,26 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 		gen_builtin(ent.builtin_id, v)
 	case .Type:
 		_ = gen_type_conv(v.parameters[0], ent.type.kind)
-	case .Proc:
+	case .Proc, .Var:
+		// Indirect call through a procedure-typed variable. The variable's slot
+		// holds the callee's code address, so pass the slot's address and let
+		// `aligned_call_ptr` (CALL [reg]) dereference it -- the same way imports
+		// are called through their IAT slot.
+		sig, ok := ent.type.variant.(^Type_Proc)
+		if !ok {
+			gen_error(v.pos, "backend: call target is not a procedure")
+			mov_ri(x86.RAX, 0)
+			return
+		}
 		n := len(v.parameters)
 		if n > len(ARG_REGS) {
 			gen_error(v.pos, "backend: at most %d arguments are supported", len(ARG_REGS))
 			mov_ri(x86.RAX, 0)
 			return
 		}
-		params: []^Entity
-		if pt, ok := ent.type.variant.(^Type_Proc); ok {
-			params = pt.parameters
+		params := sig.parameters
+		if ent.kind == .Var {
+			gen_expr(v.call) // the variable holding the function pointer
 		}
 		for p, i in v.parameters {
 			if i < len(params) && .By_Var in params[i].flags {
@@ -778,13 +799,19 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 				gen_expr(p) // value parameter: pass the value
 			}
 		}
-		for i := n - 1; i >= 0; i -= 1 {
+		for i := n-1; i >= 0; i -= 1 {
 			pop_r(ARG_REGS[i])
 		}
-		if id, ok := g.proc_labels[ent]; ok {
-			aligned_call_label(id)
-	} else {
-			gen_error(v.pos, "backend: undefined procedure '%s'", ent.name)
+		if ent.kind == .Var {
+			pop_r(x86.RAX)            // RAX = variable (the slot holding the pointer)
+			aligned_call_ptr(x86.RAX) // CALL [RAX] -> call through the function pointer
+		} else {
+			assert(ent.kind == .Proc)
+			if id, ok := g.proc_labels[ent]; ok {
+				aligned_call_label(id)
+			} else {
+				gen_error(v.pos, "backend: undefined procedure '%s'", ent.name)
+			}
 		}
 	case:
 		gen_error(v.pos, "backend: call target is not a procedure")
