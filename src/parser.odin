@@ -249,7 +249,7 @@ parse_const_expr :: proc(p: ^Parser) -> ^Ast_Expr {
 // expr = simple_expr {relation simple_expr}
 parse_expr :: proc(p: ^Parser) -> ^Ast_Expr {
 	lhs := parse_simple_expr(p)
-	for is_relation(p.curr_token.kind) {
+	if is_relation(p.curr_token.kind) {
 		op := advance_token(p)
 
 		bin := ast_new(p.module, op.pos, Ast_Binary_Expr)
