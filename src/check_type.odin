@@ -188,6 +188,44 @@ check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_
 			}
 
 			return t
+
+		case ^Ast_Enum_Type:
+			t := type_new(c.arena, .Enum, Type_Enum)
+			t.entity = entity
+			if entity != nil {
+				entity.type = t
+			}
+			scope_insert_entity(c.scope, entity)
+
+			field_count := len(v.fields)
+
+			t.fields, _ = virtual.make(c.arena, []^Entity, field_count)
+			iota := i64(0)
+			for field, i in v.fields {
+				value := iota
+				if fv, ok := field.value.?; ok {
+					o: Operand
+					check_expr(c, &o, fv)
+					switch {
+					case o.mode != .Const:
+						error(c, o.expr.pos, "enum field values must be a constant")
+					case o.type != t_int:
+						error(c, o.expr.pos, "enum field values must be a constant int, got %s", type_to_string(o.type))
+					case:
+						value = o.value.(i64) or_break
+					}
+				}
+
+				e := entity_new(c.arena, .Const, field.name.tok.text, t, c.scope)
+				e.pos = field.pos
+				e.value = value
+				field.name.entity = e
+				t.fields[i] = e
+
+				scope_insert_entity(c.scope, e)
+
+				iota = value+1
+			}
 		}
 	}
 	return t_invalid

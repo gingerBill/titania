@@ -21,6 +21,7 @@ Type_Kind :: enum u8 {
 	Array,
 	Record,
 	Proc,
+	Enum,
 }
 
 Type :: struct {
@@ -33,6 +34,7 @@ Type :: struct {
 		^Type_Array,
 		^Type_Record,
 		^Type_Proc,
+		^Type_Enum,
 	},
 }
 
@@ -65,6 +67,12 @@ Type_Proc :: struct {
 	using base: Type,
 	parameters: []^Entity,
 	scope:      ^Scope,
+}
+
+Type_Enum :: struct {
+	using base: Type,
+	entity: ^Entity,
+	fields: []^Entity,
 }
 
 
@@ -154,6 +162,9 @@ type_size_of :: proc(t: ^Type) -> i64 {
 	case .Proc, .Pointer:
 		// pointer size is 8
 		return 8
+	case .Enum:
+		// int size is 8
+		return 8
 	}
 }
 
@@ -166,6 +177,8 @@ type_align_of :: proc(t: ^Type) -> i64 {
 		t.align = 8
 	case ^Type_Array:
 		t.align = type_align_of(v.elem)
+	case ^Type_Enum:
+		t.align = 8
 	}
 	assert(t.align > 0)
 	return t.align
@@ -340,6 +353,16 @@ type_to_string_to_writer :: proc(w: io.Writer, t: ^Type) {
 			}
 
 			fmt.wprint(w, ")")
+		case .Enum:
+			e := t.variant.(^Type_Enum)
+			fmt.wprint(w, "enum ")
+			for field, i in e.fields {
+				if i > 0 {
+					fmt.wprint(w, "; ")
+				}
+				fmt.wprintf(w, "%s = %d", field.name, field.value)
+			}
+			fmt.wprint(w, " end")
 		}
 	}
 

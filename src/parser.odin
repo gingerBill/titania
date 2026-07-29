@@ -450,7 +450,7 @@ parse_qual_ident_as_expr :: proc(p: ^Parser) -> ^Ast_Expr {
 
 
 
-// struct_type = array_type | record_type | pointer_type | proc_type
+// struct_type = array_type | record_type | pointer_type | proc_type | enum_type
 parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
 	if allow_token(p, .Bracket_Open) {
 		// array_type = "["" const_expr {"," const_expr} "]" type
@@ -489,7 +489,19 @@ parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
 		sig := ast_new(p.module, p.curr_token.pos, Ast_Proc_Type)
 		sig.parameters = parse_formal_parameters(p)
 		return sig
+	} else if peek_token(p, .Enum) {
+		type := ast_new(p.module, p.curr_token.pos, Ast_Enum_Type)
+		type.tok = expect_token(p, .Enum)
+
+		// enum_type = "enum" [enum_field_sequence] "end"
+		if !peek_token(p, .End) {
+			type.fields = parse_enum_field_sequence(p)
+		}
+		expect_token(p, .End)
+
+		return type
 	}
+
 	return nil
 }
 
@@ -521,6 +533,30 @@ parse_field_list :: proc(p: ^Parser) -> ^Ast_Field_List {
 	fields.type = parse_type(p)
 	return fields
 }
+
+
+// enum_field_sequence = enum_field {";" enum_field} ";"
+parse_enum_field_sequence :: proc(p: ^Parser) -> (list: [dynamic]^Ast_Enum_Field) {
+	list.allocator = ast_allocator(p.module)
+	for {
+		#partial switch p.curr_token.kind {
+		case .End, .EOF:
+			return
+		}
+		// enum_field = ident ["=" expr]
+		field := ast_new(p.module, p.curr_token.pos, Ast_Enum_Field)
+		field.name = parse_ident(p)
+		if allow_token(p, .Equal) {
+			field.value = parse_expr(p)
+		}
+		append(&list, field)
+		if !allow_token(p, .Semicolon) {
+			break
+		}
+	}
+	return
+}
+
 
 
 // formal_parmeters = "(" [fp_section {";" fp_section}] [";"] ")"

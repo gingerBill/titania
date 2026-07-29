@@ -318,6 +318,7 @@ Ast_Structured_Type :: struct {
 		^Ast_Pointer_Type,
 		^Ast_Record_Type,
 		^Ast_Proc_Type,
+		^Ast_Enum_Type,
 	},
 }
 
@@ -352,4 +353,16 @@ Ast_Proc_Type :: struct {
 	using type_base: Ast_Structured_Type,
 	tok:        Token, // "proc"
 	parameters: [dynamic]^Ast_Formal_Parameter,
+}
+
+Ast_Enum_Field :: struct {
+	pos:   Pos,
+	name:  ^Ast_Ident,
+	value: Maybe(^Ast_Expr),
+}
+
+Ast_Enum_Type :: struct {
+	using type_base: Ast_Structured_Type,
+	tok:    Token, // "enum"
+	fields: [dynamic]^Ast_Enum_Field,
 }

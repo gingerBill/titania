@@ -642,7 +642,7 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 		case .Bool, .Char, .Byte:
 			// do nothing
 			return true
-		case .Int:
+		case .Int, .Enum:
 			push_const_int(i64(0xff), v.pos)
 			gen_binary_internal(.And, v.pos)
 			return true
@@ -664,6 +664,8 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 			pop_r(x86.RAX)
 			emit(x86.inst_r_r(.CVTSI2SD, x86.XMM0, x86.RAX))
 			push_xmm(x86.XMM0)
+			return true
+		case .Enum:
 			return true
 		case .Pointer:
 			// do nothing as they are the same width
@@ -703,6 +705,12 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 	case .Proc:
 		#partial switch target_kind {
 		case .Int, .Pointer:
+			// do nothing as they are the same width
+			return true
+		}
+	case .Enum:
+		#partial switch target_kind {
+		case .Int, .Enum:
 			// do nothing as they are the same width
 			return true
 		}

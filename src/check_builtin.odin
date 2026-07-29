@@ -413,7 +413,9 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			case .Invalid: // ignore
 			case .Nil:
 			case .Bool, .Char, .Int, .Real, .Byte, .Set, .Pointer:
-				// oaky to print
+				// okay to print
+			case .Enum:
+				// okay to print as an int
 			case .Array:
 				if !is_string(p.type) {
 					error(c, p.expr.pos, "a non-string array value cannot be printed")
