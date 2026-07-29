@@ -89,7 +89,7 @@ if_stmt = "if" expr "then" stmt_sequence
 switch_stmt = "switch" expr "then" { case } "end".
 case        = "case" case_list ":" stmt_sequence.
 case_list   = label_range {"," label_range}.
-label_range = label [".." label].
+label_range = label [range label].
 label       = integer | string | qual_ident.
 
 while_stmt = "while" expr "then" stmt_sequence
@@ -109,9 +109,8 @@ Notes:
  * `expr` permits at most one `relation`, so relational operators are
    non-associative (e.g. `a < b < c` is not valid).
  * A `case` expression must be an integer-like value (`byte`, `char`, `int`);
-   its labels are constant, may be single values or `lo .. hi` ranges, and must
-   not overlap. `case` has no `else`; if no label matches, the statement is
-   skipped.
+   its labels are constant, may be single values or `lo ..< hi` or `lo ..= hi` ranges, and must not overlap.
+   `case` has no `else`; if no label matches, the statement is skipped.
  * There is no `char` literal: a single-character constant is written as a
    `string` and converted with `ord`/`chr`.
  * A `var` parameter (`fp_section` beginning with `var`) is passed by reference;

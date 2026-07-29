@@ -8,7 +8,7 @@ begin
 	for i := 1 to 10 then
 		sum := sum + i
 	end
-	println("sum 1..10 = ", sum)
+	println("sum 1..=10 = ", sum)
 
 	for i := 5 to 1 by -1 then
 		print(i, " ")
