@@ -59,7 +59,8 @@ Token_Kind :: enum {
 	Greater_Than,
 	Less_Than_Equal,
 	Greater_Than_Equal,
-	Ellipsis,
+	Ellipsis_Open,
+	Ellipsis_Close,
 	Colon,
 
 	Ident,
@@ -128,7 +129,8 @@ token_kind_string := [Token_Kind]string{
 	.Greater_Than       = ">",
 	.Less_Than_Equal    = "<=",
 	.Greater_Than_Equal = ">=",
-	.Ellipsis           = "..",
+	.Ellipsis_Open      = "..=",
+	.Ellipsis_Close     = "..<",
 	.Colon              = ":",
 
 	.Ident   = "identifier",
@@ -403,9 +405,17 @@ get_token :: proc(t: ^Tokenizer) -> (token: Token) {
 	case '%':  token.kind = .Mod
 	case '.':
 		token.kind = .Dot
-		if t.ch == '.' { // ..
-			next_rune(t)
-			token.kind = .Ellipsis
+		if t.ch == '.' { // ..< or ..=
+			switch peek_rune(t) {
+			case '<':
+				next_rune(t)
+				next_rune(t)
+				token.kind = .Ellipsis_Close
+			case '=':
+				next_rune(t)
+				next_rune(t)
+				token.kind = .Ellipsis_Open
+			}
 		}
 	case ',':  token.kind = .Comma
 	case ';':  token.kind = .Semicolon

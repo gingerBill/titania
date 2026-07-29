@@ -60,8 +60,9 @@ factor      = integer | real | string
             | set_expr
             | "(" expr ")" | "not" factor | designator.
 
-set_expr = "{" [set_element {"," set_element} [","]] "}".
-set_element  = expr [".." expr].
+set_expr     = "{" [set_element {"," set_element} [","]] "}".
+range        = "..<" | "..="
+set_element  = expr [range expr].
 
 designator = qual_ident {selector}.
 selector   = "." ident
@@ -131,7 +132,8 @@ true    type    until   using   var     while   xor
 +    .   (   )   =  <>
 -    ,   [   ]   <  <=
 *    ;   {   }   >  >=
-/    %   :=  :   .. ^
+/    %   :=  :   ^
+..<  ..=
 ```
 
 ### Tokenizer Semicolon Insertion Rules

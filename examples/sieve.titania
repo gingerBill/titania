@@ -8,7 +8,7 @@ var
 	i, j: int
 
 begin
-	sieve := {2 .. N}
+	sieve := {2 ..= N}
 	i := 2
 	while i * i <= N then
 		if i in sieve then

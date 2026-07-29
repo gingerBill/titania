@@ -386,13 +386,14 @@ gen_set_expr :: proc(v: ^Ast_Set_Expr) {
 
 	for element in v.elements {
 		if erhs, ok := element.rhs.?; ok {
-			// range lo..hi  ->  (~0 << lo) & (~0 >> (63 - hi))
+			// range lo..=hi  ->  (~0 << lo) & (~0 >> (63 - hi))
+			// range lo..<hi  ->  (~0 << lo) & (~0 >> (64 - hi))
 			gen_expr(element.lhs) // push lo
 			gen_expr(erhs)        // push hi
 			pop_r(x86.RCX)        // RCX = hi
 			// high mask in RDX = all-ones >> (63 - hi)  -> bits [0, hi]
 			mov_ri(x86.RDX, -1)
-			mov_ri(x86.RAX, 63)
+			mov_ri(x86.RAX, 63 if element.tok.kind == .Ellipsis_Open else 64)
 			emit(x86.inst_r_r(.SUB, x86.RAX, x86.RCX)) // RAX = 63 - hi
 			emit(x86.inst_r_r(.MOV, x86.RCX, x86.RAX)) // CL = 63 - hi
 			emit(x86.inst_r_r(.SHR, x86.RDX, x86.CL))
@@ -1216,12 +1217,15 @@ gen_switch :: proc(v: ^Ast_Switch_Stmt) {
 					gen_error(label.pos, "backend: non-constant case label")
 					continue
 				}
-				// match when lo <= RAX <= hi (signed). Only JG is needed: the
-				// lower bound is tested by comparing lo against RAX (swapped).
+				// match when lo <= RAX <=/< hi (signed).
 				skip := fwd_label()
 				mov_ri(x86.RCX, hi)
 				emit(x86.inst_r_r(.CMP, x86.RAX, x86.RCX))
-				emit(x86.inst_rel(.JG, skip, 4)) // RAX > hi -> not this label
+				if label.tok.kind == .Ellipsis_Open {
+					emit(x86.inst_rel(.JG, skip, 4)) // RAX > hi -> not this label
+				} else {
+					emit(x86.inst_rel(.JGE, skip, 4)) // RAX >= hi -> not this label
+				}
 				mov_ri(x86.RCX, lo)
 				emit(x86.inst_r_r(.CMP, x86.RCX, x86.RAX))
 				emit(x86.inst_rel(.JG, skip, 4)) // lo > RAX -> not this label

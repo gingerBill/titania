@@ -365,11 +365,14 @@ parse_factor :: proc(p: ^Parser) -> ^Ast_Expr {
 	return parse_designator(p)
 }
 
-// element = expr [".." expr]
+// range = "..<" | "..="
+// element = expr [range expr]
 parse_element :: proc(p: ^Parser) -> ^Ast_Element {
 	element := ast_new(p.module, p.curr_token.pos, Ast_Element)
 	element.lhs = parse_expr(p)
-	if allow_token(p, .Ellipsis) {
+	#partial switch tok := p.curr_token; tok.kind {
+	case .Ellipsis_Open, .Ellipsis_Close:
+		element.tok = expect_token(p, tok.kind)
 		element.rhs = parse_expr(p)
 	}
 	return element
@@ -737,12 +740,14 @@ parse_case_list :: proc(p: ^Parser) -> (list: [dynamic]^Ast_Label_Range) {
 	return
 }
 
-// label_range = label [".." label]
+// label_range = label [range label]
 parse_label_range :: proc(p: ^Parser) -> ^Ast_Label_Range {
 	range := ast_new(p.module, p.curr_token.pos, Ast_Label_Range)
 	range.lo = parse_label(p)
-	if allow_token(p, .Ellipsis) {
-		range.hi = parse_label(p)
+	#partial switch tok := p.curr_token; tok.kind {
+	case .Ellipsis_Open, .Ellipsis_Close:
+		range.tok = expect_token(p, tok.kind)
+		range.hi  = parse_label(p)
 	}
 	return range
 }

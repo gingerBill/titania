@@ -133,6 +133,7 @@ Ast_Case :: struct {
 Ast_Label_Range :: struct {
 	pos: Pos,
 	lo: ^Ast_Expr,
+	tok: Token, // "..=" or "..<"
 	hi: Maybe(^Ast_Expr),
 }
 
@@ -301,6 +302,7 @@ Ast_Set_Expr :: struct {
 Ast_Element :: struct {
 	pos: Pos,
 	lhs: ^Ast_Expr,
+	tok: Token, // "..=" or "..<"
 	rhs: Maybe(^Ast_Expr),
 }
 

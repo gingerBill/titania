@@ -8,7 +8,7 @@ begin
 	switch n then
 	case 1:
 		println("one")
-	case 2 .. 3:
+	case 2 ..= 3:
 		println("two or three")
 	case 4, 5, 6:
 		println("four to six")
