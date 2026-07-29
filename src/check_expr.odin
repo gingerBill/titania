@@ -285,21 +285,7 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 	case ^Ast_Binary_Expr:
 		lhs, rhs: Operand
 
-		#partial switch e.op.kind {
-		case .Is:
-			check_expr(c, &lhs, e.lhs)
-			check_expr_or_type(c, &rhs, e.rhs)
-
-			o.value = false
-			o.mode = .Const
-			o.type = t_bool
-			if rhs.mode != .Type {
-				error(c, rhs.expr.pos, "expected a type for 'is'")
-			}
-			o.value = types_equal(lhs.type, rhs.type)
-			return
-
-		case .In:
+		if e.op.kind == .In {
 			check_expr(c, &lhs, e.lhs)
 			check_expr(c, &rhs, e.rhs)
 

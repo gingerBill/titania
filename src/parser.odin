@@ -269,7 +269,7 @@ is_relation :: proc(kind: Token_Kind) -> bool {
 	#partial switch kind {
 	case .Equal, .Not_Equal,
 	     .Less_Than, .Less_Than_Equal, .Greater_Than, .Greater_Than_Equal,
-	     .In, .Is:
+	     .In:
 		return true
 	}
 	return false

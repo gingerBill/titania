@@ -101,7 +101,7 @@ return_stmt = "return".
 
 add_operator = "+" | "-" | "xor" | "or".
 mul_operator = "*" | "/" | "%"   | "and".
-relation     = "=" | "<>" | "<" | "<=" | ">" | ">=" | "in" | "is".
+relation     = "=" | "<>" | "<" | "<=" | ">" | ">=" | "in".
 ```
 
 Notes:
@@ -120,9 +120,9 @@ Notes:
 
 ```
 and     begin   by      case    const   else    elseif  end
-false   for     if      import  in      is      module  nil
-not     or      proc    record  repeat  return  switch  then
-to      true    type    until   using   var     while   xor
+false   for     if      import  in      module  nil     not
+or      proc    record  repeat  return  switch  then    to
+true    type    until   using   var     while   xor
 ```
 
 ### Operators
