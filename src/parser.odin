@@ -64,7 +64,11 @@ expect_token :: proc(p: ^Parser, kind: Token_Kind) -> (Token, bool) #optional_ok
 	if prev.kind == kind {
 		return prev, true
 	}
-	syntax_error(&p.tok, prev.pos, "expected %s, got %s", token_kind_string[kind], token_kind_string[prev.kind])
+	if prev.kind == .Semicolon && prev.text == "\n" {
+		syntax_error(&p.tok, prev.pos, "expected %s, got newline", token_kind_string[kind])
+	} else {
+		syntax_error(&p.tok, prev.pos, "expected %s, got %s", token_kind_string[kind], token_kind_string[prev.kind])
+	}
 	return prev, false
 }
 
@@ -220,22 +224,19 @@ parse_var_decl :: proc(p: ^Parser, tok: Token) -> ^Ast_Var_Decl {
 parse_proc_decl :: proc(p: ^Parser) -> ^Ast_Proc_Decl {
 	decl := ast_new(p.module, p.curr_token.pos, Ast_Proc_Decl)
 
-	{
-		decl.tok = expect_token(p, .Proc)
-		decl.name = parse_ident(p)
-		decl.parameters = parse_formal_parameters(p)
-	}
+	decl.tok = expect_token(p, .Proc)
+	decl.name = parse_ident(p)
+	decl.parameters = parse_formal_parameters(p)
 
 	expect_token(p, .Semicolon)
 
-	{
-		// proc_body = decl_sequence ["begin" stmt_sequence] "end"
-		decl.decls = parse_decl_sequence(p)
-		if allow_token(p, .Begin) {
-			decl.body = parse_stmt_sequence(p)
-		}
-		expect_token(p, .End)
+	// proc_body = decl_sequence ["begin" stmt_sequence] "end"
+	decl.decls = parse_decl_sequence(p)
+	if allow_token(p, .Begin) {
+		decl.body = parse_stmt_sequence(p)
 	}
+	expect_token(p, .End)
+
 	return decl
 }
 
@@ -452,7 +453,8 @@ parse_qual_ident_as_expr :: proc(p: ^Parser) -> ^Ast_Expr {
 
 // struct_type = array_type | record_type | pointer_type | proc_type | enum_type
 parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
-	if allow_token(p, .Bracket_Open) {
+	switch {
+	case allow_token(p, .Bracket_Open):
 		// array_type = "["" const_expr {"," const_expr} "]" type
 		array := ast_new(p.module, p.curr_token.pos, Ast_Array_Type)
 		array.counts.allocator = ast_allocator(p.module)
@@ -467,33 +469,32 @@ parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
 		elem := parse_type(p)
 		array.elem = elem
 		return array
-	} else if peek_token(p, .Record) {
+	case peek_token(p, .Record):
+		// record_type = "record" [field_list_sequence] "end"
 		type := ast_new(p.module, p.curr_token.pos, Ast_Record_Type)
-
 		type.tok = expect_token(p, .Record)
 
-		// record_type = "record" [field_list_sequence] "end"
 		if !peek_token(p, .End) {
 			type.fields = parse_field_list_sequence(p)
 		}
 		expect_token(p, .End)
 
 		return type
-	} else if allow_token(p, .Caret) {
+	case allow_token(p, .Caret):
 		// pointer_type = "^" type
 		ptr := ast_new(p.module, p.curr_token.pos, Ast_Pointer_Type)
 		ptr.elem = parse_type(p)
 		return ptr
-	} else if allow_token(p, .Proc) {
+	case allow_token(p, .Proc):
 		// proc_type = "proc" formal_parameters
 		sig := ast_new(p.module, p.curr_token.pos, Ast_Proc_Type)
 		sig.parameters = parse_formal_parameters(p)
 		return sig
-	} else if peek_token(p, .Enum) {
+	case peek_token(p, .Enum):
+		// enum_type = "enum" [enum_field_sequence] "end"
 		type := ast_new(p.module, p.curr_token.pos, Ast_Enum_Type)
 		type.tok = expect_token(p, .Enum)
 
-		// enum_type = "enum" [enum_field_sequence] "end"
 		if !peek_token(p, .End) {
 			type.fields = parse_enum_field_sequence(p)
 		}
@@ -543,11 +544,11 @@ parse_enum_field_sequence :: proc(p: ^Parser) -> (list: [dynamic]^Ast_Enum_Field
 		case .End, .EOF:
 			return
 		}
-		// enum_field = ident ["=" expr]
+		// enum_field = ident ["=" const_expr]
 		field := ast_new(p.module, p.curr_token.pos, Ast_Enum_Field)
 		field.name = parse_ident(p)
 		if allow_token(p, .Equal) {
-			field.value = parse_expr(p)
+			field.value = parse_const_expr(p)
 		}
 		append(&list, field)
 		if !allow_token(p, .Semicolon) {

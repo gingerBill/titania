@@ -161,6 +161,9 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 			o.mode = .Invalid
 			return
 		}
+		if p, ok := found.scope.procedure.?; ok && p != c.curr_proc {
+			error(c, e.pos, "'%s' is declared in a different procedure's scope '%s'", e.tok.text, p.name)
+		}
 		assign_entity_to_operand(c, found, o, expr)
 		e.entity = found
 

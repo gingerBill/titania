@@ -67,6 +67,8 @@ check_proc_decl :: proc(c: ^Checker_Context, decl: ^Ast_Proc_Decl) {
 	c.curr_proc = entity
 	defer c.curr_proc = prev_proc
 
+	c.scope.procedure = entity
+
 	// body
 	for decl in decl.decls {
 		check_decl(c, decl)
