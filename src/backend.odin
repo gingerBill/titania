@@ -252,19 +252,17 @@ gen_addr :: proc(e: ^Ast_Expr) {
 		elem := i64(type_size_of(arr.elem))
 		gen_aggregate_base_addr(v.expr) // base
 		push_const_int(0, e.pos)      // byte-offset accumulator
-		for idx, k in v.indices {
-			stride := elem
-			for d in k + 1..<len(arr.counts) {
-				stride *= arr.counts[d]
-			}
-			gen_expr(idx)
-			pop_r(x86.RAX)              // index value
-			mov_ri(x86.RCX, stride)
-			emit(x86.inst_r_r(.IMUL, x86.RAX, x86.RCX))
-			pop_r(x86.RCX)             // accumulator
-			emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
-			push_r(x86.RAX)
-		}
+
+		stride := elem * arr.count
+
+		gen_expr(v.index)
+		pop_r(x86.RAX)              // index value
+		mov_ri(x86.RCX, stride)
+		emit(x86.inst_r_r(.IMUL, x86.RAX, x86.RCX))
+		pop_r(x86.RCX)             // accumulator
+		emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
+		push_r(x86.RAX)
+
 		pop_r(x86.RAX)  // total offset
 		pop_r(x86.RCX)  // base
 		emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
@@ -701,6 +699,8 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 	case .Array:
 		return false
 	case .Record:
+		return false
+	case .Slice:
 		return false
 	case .Proc:
 		#partial switch target_kind {

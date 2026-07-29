@@ -274,7 +274,7 @@ Ast_Selector_Expr :: struct {
 Ast_Index_Expr :: struct {
 	using base: Ast_Expr,
 	expr: ^Ast_Expr,
-	indices: [dynamic]^Ast_Expr,
+	index: ^Ast_Expr,
 }
 
 
@@ -315,6 +315,7 @@ Ast_Structured_Type :: struct {
 	pos: Pos,
 	variant: union #shared_nil {
 		^Ast_Array_Type,
+		^Ast_Slice_Type,
 		^Ast_Pointer_Type,
 		^Ast_Record_Type,
 		^Ast_Proc_Type,
@@ -324,8 +325,13 @@ Ast_Structured_Type :: struct {
 
 Ast_Array_Type :: struct {
 	using type_base: Ast_Structured_Type,
-	counts: [dynamic]^Ast_Expr, // 'nil' when passed to procedures
-	elem:   Ast_Type,
+	count: ^Ast_Expr, // 'nil' when slice
+	elem:  Ast_Type,
+}
+
+Ast_Slice_Type :: struct {
+	using type_base: Ast_Structured_Type,
+	elem: Ast_Type,
 }
 
 Ast_Pointer_Type :: struct {

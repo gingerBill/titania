@@ -420,6 +420,7 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 				if !is_string(p.type) {
 					error(c, p.expr.pos, "a non-string array value cannot be printed")
 				}
+			case .Slice:  error(c, p.expr.pos, "a slice value cannot be printed")
 			case .Record: error(c, p.expr.pos, "a record value cannot be printed")
 			case .Proc:   error(c, p.expr.pos, "a procedure value cannot be printed")
 			}
@@ -438,16 +439,10 @@ check_builtin :: proc(c: ^Checker_Context, o: ^Operand, parameters: []^Ast_Expr)
 			check_expr(c, &p, parameters[0])
 			if p.type.kind == .Array {
 				t := p.type.variant.(^Type_Array)
-				if t.counts == nil {
-					o.mode = .RValue
-					o.value = nil
-				} else {
-					total_count := i64(1)
-					for count in t.counts {
-						total_count *= count
-					}
-					o.value = total_count
-				}
+				o.value = t.count
+			} else if p.type.kind == .Slice {
+				o.mode = .RValue
+				o.value = nil
 			} else {
 				error(c, p.expr.pos, "expected an array value or type to '%s', got %s", name, type_to_string(p.type))
 			}

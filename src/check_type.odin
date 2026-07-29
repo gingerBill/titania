@@ -3,10 +3,10 @@ package titania
 import "core:fmt"
 import "core:mem/virtual"
 
-check_type :: proc(c: ^Checker_Context, ast: Ast_Type, allow_no_count_arrays := false) -> ^Type {
-	return check_type_internal(c, ast, nil, allow_no_count_arrays)
+check_type :: proc(c: ^Checker_Context, ast: Ast_Type) -> ^Type {
+	return check_type_internal(c, ast, nil)
 }
-check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_Decl, allow_no_count_arrays: bool) -> ^Type {
+check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_Decl) -> ^Type {
 	entity: ^Entity
 
 	if decl != nil {
@@ -74,37 +74,35 @@ check_type_internal :: proc(c: ^Checker_Context, ast: Ast_Type, decl: ^Ast_Type_
 				entity.type = t
 			}
 
-			if v.counts != nil {
-				counts, _ := virtual.make(c.arena, []i64, len(v.counts))
-				index := 0
-				for expr in v.counts {
-					o: Operand
-					check_expr(c, &o, expr)
-					if o.mode != .Const {
-						error(c, expr.pos, "array counts must be constant")
-						continue
-					}
-					cv, ok := o.value.(i64)
-					if !ok {
-						error(c, expr.pos, "array counts must be constant integers")
-						continue
-					}
-					if  cv < 0 {
-						error(c, expr.pos, "array counts must not be negative, got %d", cv)
-						continue
-					}
-
-					counts[index] = cv
-					index += 1
-				}
-				t.counts = counts[:index]
-			} else if !allow_no_count_arrays {
-				error(c, v.pos, "array type declaration without any count specified")
+			o: Operand
+			check_expr(c, &o, v.count)
+			if o.mode != .Const {
+				error(c, o.expr.pos, "array counts must be constant")
+				return t
+			}
+			cv, ok := o.value.(i64)
+			if !ok {
+				error(c, o.expr.pos, "array counts must be constant integers")
+				return t
+			}
+			if cv < 0 {
+				error(c, o.expr.pos, "array counts must not be negative, got %d", cv)
+				return t
 			}
 
+			t.count = cv
 
 			scope_insert_entity(c.scope, entity)
+			return t
 
+		case ^Ast_Slice_Type:
+			t := type_new(c.arena, .Slice, Type_Slice)
+			t.elem = check_type(c, v.elem)
+			if entity != nil {
+				entity.type = t
+			}
+
+			scope_insert_entity(c.scope, entity)
 			return t
 
 		case ^Ast_Pointer_Type:
@@ -246,7 +244,7 @@ check_proc_type :: proc(c: ^Checker_Context, parameters: []^Ast_Formal_Parameter
 
 	index := 0
 	for fp in parameters {
-		type := check_type(c, fp.type, allow_no_count_arrays=true)
+		type := check_type(c, fp.type)
 		for name in fp.names {
 			e := entity_new(c.arena, .Var, name.tok.text, type, c.scope)
 			e.flags += {.Parameter}

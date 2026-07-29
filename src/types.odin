@@ -19,6 +19,7 @@ Type_Kind :: enum u8 {
 
 	Pointer,
 	Array,
+	Slice,
 	Record,
 	Proc,
 	Enum,
@@ -32,6 +33,7 @@ Type :: struct {
 	variant: union {
 		^Type_Pointer,
 		^Type_Array,
+		^Type_Slice,
 		^Type_Record,
 		^Type_Proc,
 		^Type_Enum,
@@ -43,10 +45,16 @@ Type_Pointer :: struct {
 	elem: ^Type,
 }
 
+/* inline memory size_of(elem) * count */
 Type_Array :: struct {
 	using base: Type,
-	counts: []i64, // 'nil' if a procedure parameter
-	elem:   ^Type,
+	count: i64,
+	elem:  ^Type,
+}
+/* record data: ^Elem; len: int */
+Type_Slice :: struct {
+	using base: Type,
+	elem: ^Type,
 }
 
 Type_Record :: struct {
@@ -150,10 +158,11 @@ type_size_of :: proc(t: ^Type) -> i64 {
 	case .Array:
 		array := t.variant.(^Type_Array)
 		sz := i64(type_size_of(array.elem))
-		for count in array.counts {
-			sz *= count
-		}
-		return i64(sz)
+		sz *= array.count
+		return sz
+	case .Slice:
+		// ptr + len
+		return 8 * 8
 	case .Record:
 		record := t.variant.(^Type_Record)
 
@@ -177,6 +186,9 @@ type_align_of :: proc(t: ^Type) -> i64 {
 		t.align = 8
 	case ^Type_Array:
 		t.align = type_align_of(v.elem)
+	case ^Type_Slice:
+		// pointer and int are both aligned to 8
+		t.align = 8
 	case ^Type_Enum:
 		t.align = 8
 	}
@@ -198,8 +210,7 @@ type_new_string :: proc(arena: ^virtual.Arena, len: int) -> ^Type {
 	t := type_new(arena, .Array, Type_Array)
 	t.align = 1
 	t.elem = t_char
-	t.counts, _ = virtual.make_slice(arena, []i64, 1)
-	t.counts[0] = i64(len)
+	t.count = i64(len)
 	return t
 }
 
@@ -232,11 +243,14 @@ types_equal :: proc(x, y: ^Type) -> bool {
 	case .Array:
 		a := x.variant.(^Type_Array) or_return
 		b := y.variant.(^Type_Array) or_return
-		types_equal(a.elem, b.elem) or_return
-		(len(a.counts) == len(b.counts)) or_return
-		for _, i in a.counts {
-			(a.counts[i] == b.counts[i]) or_return
-		}
+		types_equal(a.elem, b.elem)  or_return
+		(a.count == b.count)         or_return
+		return true
+
+	case .Slice:
+		a := x.variant.(^Type_Array) or_return
+		b := y.variant.(^Type_Array) or_return
+		types_equal(a.elem, b.elem)  or_return
 		return true
 
 	case .Record:
@@ -317,12 +331,12 @@ type_to_string_to_writer :: proc(w: io.Writer, t: ^Type) {
 		case .Array:
 			array := t.variant.(^Type_Array)
 			fmt.wprint(w, "[")
-			for count, i in array.counts {
-				if i > 0 {
-					fmt.wprint(w, ", ")
-				}
-				fmt.wprint(w, count)
-			}
+			fmt.wprint(w, array.count)
+			fmt.wprint(w, "]")
+			type_to_string_to_writer(w, array.elem)
+		case .Slice:
+			array := t.variant.(^Type_Slice)
+			fmt.wprint(w, "[")
 			fmt.wprint(w, "]")
 			type_to_string_to_writer(w, array.elem)
 		case .Record:

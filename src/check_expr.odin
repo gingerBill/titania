@@ -10,7 +10,7 @@ check_is_integer :: proc(c: ^Checker_Context, o: ^Operand) {
 	#partial switch o.type.kind {
 	case .Invalid:
 		return
-	case .Char, .Int, .Byte:
+	case .Char, .Int, .Byte, .Enum:
 		return
 	}
 
@@ -382,11 +382,10 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 
 	case ^Ast_Index_Expr:
 		check_expr(c, o, e.expr)
-		for index in e.indices {
-			i: Operand
-			check_expr(c, &i, index)
-			check_is_integer(c, &i)
-		}
+		i: Operand
+		check_expr(c, &i, e.index)
+		check_is_integer(c, &i)
+
 		if o.type.kind != .Array {
 			error(c, e.expr.pos, "cannot index a non-array type")
 			o.mode = .Invalid

@@ -36,8 +36,9 @@ fp_section        = ["var"] ident_list ":" formal_type.
 formal_type       = ["[" "]"] qual_ident.
 
 type         = qual_ident | struct_type.
-struct_type  = array_type | record_type | pointer_type | proc_type | enum_type.
-array_type   = "[" const_expr {"," const_expr} "]" type.
+struct_type  = array_type | slice_type | record_type | pointer_type | proc_type | enum_type.
+array_type   = "[" [const_expr "]" type.
+slice_type   = "[" "]" type.
 record_type  = "record" [field_list_sequence] "end".
 pointer_type = "^" type.
 proc_type    = "proc" formal_parameters.

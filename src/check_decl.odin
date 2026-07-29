@@ -48,7 +48,7 @@ check_var_decl :: proc(c: ^Checker_Context, decl: ^Ast_Var_Decl) {
 }
 
 check_type_decl :: proc(c: ^Checker_Context, decl: ^Ast_Type_Decl) {
-	_ = check_type_internal(c, decl.type, decl, allow_no_count_arrays=false)
+	_ = check_type_internal(c, decl.type, decl)
 }
 
 check_proc_decl :: proc(c: ^Checker_Context, decl: ^Ast_Proc_Decl) {

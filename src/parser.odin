@@ -457,14 +457,9 @@ parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
 	case allow_token(p, .Bracket_Open):
 		// array_type = "["" const_expr {"," const_expr} "]" type
 		array := ast_new(p.module, p.curr_token.pos, Ast_Array_Type)
-		array.counts.allocator = ast_allocator(p.module)
 
-		lhs := parse_const_expr(p)
-		append(&array.counts, lhs)
-		for allow_token(p, .Comma) {
-			rhs := parse_const_expr(p)
-			append(&array.counts, rhs)
-		}
+		array.count = parse_const_expr(p)
+
 		expect_token(p, .Bracket_Close)
 		elem := parse_type(p)
 		array.elem = elem
@@ -597,9 +592,8 @@ parse_formal_type :: proc(p: ^Parser) -> Ast_Type {
 	if allow_token(p, .Bracket_Open) {
 		pos := p.prev_token.pos
 		expect_token(p, .Bracket_Close)
-		array := ast_new(p.module, pos, Ast_Array_Type)
-		array.counts = nil
-		array.elem   = parse_qual_ident_as_type(p)
+		array := ast_new(p.module, pos, Ast_Slice_Type)
+		array.elem = parse_qual_ident_as_type(p)
 		return &array.type_base
 	}
 	return parse_qual_ident_as_type(p)
@@ -858,7 +852,7 @@ parse_selector :: proc(p: ^Parser, lhs: ^Ast_Expr) -> ^Ast_Expr {
 	case allow_token(p, .Bracket_Open):
 		index := ast_new(p.module, lhs.pos, Ast_Index_Expr)
 		index.expr = lhs
-		index.indices = parse_expr_list(p)
+		index.index = parse_expr(p)
 		expect_token(p, .Bracket_Close)
 		return index
 
