@@ -788,6 +788,10 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 			mov_ri(x86.RAX, 0)
 			return
 		}
+		if ent.kind == .Var {
+			gen_addr(v.call) // the address variable holding the function pointer
+		}
+
 		params := sig.parameters
 		for p, i in v.parameters {
 			if i < len(params) && .By_Var in params[i].flags {
@@ -800,7 +804,6 @@ gen_call :: proc(v: ^Ast_Call_Expr) {
 			pop_r(ARG_REGS[i])
 		}
 		if ent.kind == .Var {
-			gen_addr(v.call)          // the address variable holding the function pointer
 			pop_r(x86.RAX)            // RAX = &variable (the slot holding the pointer)
 			aligned_call_ptr(x86.RAX) // CALL [RAX] -> call through the function pointer
 		} else {
