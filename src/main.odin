@@ -22,27 +22,34 @@ main :: proc() {
 		append(&parsers, p)
 	}
 
+
+	info: Checker_Info
+	checker_info_init(&info)
+
 	for &p in parsers {
-		module: Module
-		parse(&p, &module)
+		module := new(Module)
+		parse(&p, module)
+		module.id = len(info.modules)+1
 
 		if p.tok.error_count != 0 {
+			free(module)
 			return
 		}
 
-		info: Checker_Info
-		checker_info_init(&info)
-
-		check_module(&info, &module)
-
+		check_module(&info, module)
 		if module.error_count != 0 {
 			return
 		}
 
-		out_exe_path := fmt.aprintf("%s.exe", module.name.text)
-		defer delete(out_exe_path)
-		if generate(&module, out_exe_path) {
-			fmt.println("wrote", out_exe_path)
-		}
+		info.modules[module.name.text] = module
+		append(&info.modules_in_order, module)
+	}
+
+	last_module := info.modules_in_order[len(info.modules_in_order)-1]
+
+	out_exe_path := fmt.aprintf("%s.exe", last_module.name.text)
+	defer delete(out_exe_path)
+	if generate(&info, out_exe_path) {
+		fmt.println("wrote", out_exe_path)
 	}
 }

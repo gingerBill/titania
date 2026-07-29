@@ -48,6 +48,7 @@ Checker_Info :: struct {
 	builtin_scope: ^Scope,
 
 	modules: map[string]^Module,
+	modules_in_order: [dynamic]^Module,
 }
 
 Checker_Context :: struct {
@@ -65,6 +66,7 @@ Checker_Context :: struct {
 Module :: struct {
 	arena: virtual.Arena `fmt:"-"`,
 
+	id: int,
 	filename: string,
 
 	tok:  Token,

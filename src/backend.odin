@@ -5,7 +5,8 @@ import "core:rexcode/isa"
 import x86 "core:rexcode/isa/x86"
 
 Gen :: struct {
-	m:           ^Module,
+	info: ^Checker_Info,
+	current_module: ^Module,
 	code:        [dynamic]x86.Instruction,
 	labels:      [dynamic]isa.Label_Definition,
 	proc_labels: map[^Entity]u32,
@@ -39,7 +40,8 @@ emit :: proc(inst: x86.Instruction) {
 }
 
 gen_error :: proc(pos: Pos, format: string, args: ..any) {
-	error_module(g.m, pos, format, ..args)
+	assert(g.current_module != nil)
+	error_module(g.current_module, pos, format, ..args)
 	g.error_count += 1
 }
 
@@ -1403,10 +1405,11 @@ gen_return :: proc(v: ^Ast_Return_Stmt) {
 
 
 @(require_results)
-assign_globals :: proc(m: ^Module) -> i64 {
+assign_globals :: proc(info: ^Checker_Info) -> i64 {
 	off := i64(0)
-	for decl in m.decls {
-		if vd, ok := decl.variant.(^Ast_Var_Decl); ok {
+	for m in info.modules_in_order {
+		for decl in m.decls {
+			vd := decl.variant.(^Ast_Var_Decl) or_continue
 			for name in vd.names {
 				if name.entity == nil {
 					continue
@@ -1533,10 +1536,12 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 	gen_epilogue()
 }
 
-gen_entry :: proc(m: ^Module) {
+gen_entry :: proc(info: ^Checker_Info) {
 	gen_prologue(0)
-	if entry, ok := m.entry.?; ok {
-		gen_stmts(entry)
+	for m in info.modules_in_order {
+		if entry, ok := m.entry.?; ok {
+			gen_stmts(entry)
+		}
 	}
 	mov_ri(x86.RCX, 0)
 	mov_ri(x86.RAX, i64(g.imp.funcs[.exit]))
@@ -1557,8 +1562,8 @@ collect_proc_labels :: proc(decls: []^Ast_Decl) {
 
 // Entry point of the backend: turn a checked module into a Windows exe.
 @(require_results)
-generate :: proc(m: ^Module, out_filename: string) -> bool {
-	gg := Gen{m = m}
+generate :: proc(info: ^Checker_Info, out_filename: string) -> bool {
+	gg := Gen{info = info}
 	g = &gg
 	defer g = nil
 	defer delete(gg.code)
@@ -1568,17 +1573,20 @@ generate :: proc(m: ^Module, out_filename: string) -> bool {
 	region, imp := pe_create_imports()
 	g.imp = imp
 
-	globals_size := assign_globals(m)
+	globals_size := assign_globals(info)
 	g.global_base = u64(IMAGE_BASE + TEXT_BASE + IMPORT_REGION_SIZE)
 	g.string_base = g.global_base + u64(globals_size)
 
 	g.proc_labels = make(map[^Entity]u32)
 	defer delete(g.proc_labels)
-	collect_proc_labels(m.decls[:])
+	for m in info.modules_in_order {
+		collect_proc_labels(m.decls[:])
+	}
 
-	gen_entry(m)
-	for decl in m.decls {
-		if pd, ok := decl.variant.(^Ast_Proc_Decl); ok {
+	gen_entry(info)
+	for m in info.modules_in_order {
+		for decl in m.decls {
+			pd := decl.variant.(^Ast_Proc_Decl) or_continue
 			gen_proc(pd)
 		}
 	}
