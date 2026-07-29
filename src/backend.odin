@@ -1398,7 +1398,14 @@ assign_proc_locals :: proc(pd: ^Ast_Proc_Decl) -> i32 {
 	if pd.name.entity != nil {
 		if pt, ok := pd.name.entity.type.variant.(^Type_Proc); ok {
 			for pe in pt.parameters {
-				off += 8
+				// `var` params (By_Var) receive a pointer (8 bytes). A value
+				// aggregate param receives a full-size local copy (see prologue);
+				// everything else is a single 8-byte slot.
+				sz := i64(8)
+				if !(.By_Var in pe.flags) && is_aggregate(pe.type) {
+					sz = slot_size(pe.type)
+				}
+				off += i32(sz)
 				pe.backend_offset = off
 				pe.backend_global = false
 			}
@@ -1450,14 +1457,29 @@ gen_proc :: proc(pd: ^Ast_Proc_Decl) {
 	g.end_ret_label = fwd_label()
 
 	if pt, ok := ent.type.variant.(^Type_Proc); ok {
+		// Spill every incoming argument register into its stack slot. For scalars
+		// and `var` params this is the final value/pointer; for a value aggregate
+		// param it is (temporarily) the pointer to the caller's aggregate.
 		for pe, i in pt.parameters {
-			if is_aggregate(pe.type) {
-				gen_error(pd.name.pos, "backend: aggregate (record/array) parameters are not supported yet")
-			}
 			if i >= len(ARG_REGS) {
 				break
 			}
 			emit(x86.inst_m_r(.MOV, x86.mem_base_disp(x86.RBP, -pe.backend_offset), 8, ARG_REGS[i]))
+		}
+		// A value (non-`var`) aggregate parameter is passed by address but has
+		// call-by-value semantics, so replace the spilled pointer with a private
+		// stack copy: memmove(dst = &slot, src = spilled pointer, n = size_of(T)).
+		for pe, i in pt.parameters {
+			if i >= len(ARG_REGS) {
+				break
+			}
+			if is_aggregate(pe.type) && !(.By_Var in pe.flags) {
+				emit(x86.inst_r_m(.MOV, x86.RDX, x86.mem_base_disp(x86.RBP, -pe.backend_offset), 8)) // src = caller's aggregate
+				emit(x86.inst_r_m(.LEA, x86.RCX, x86.mem_base_disp(x86.RBP, -pe.backend_offset), 8)) // dst = &slot
+				mov_ri(x86.R8, type_size_of(pe.type))
+				mov_ri(x86.RAX, i64(g.imp.funcs[.memmove]))
+				aligned_call_ptr(x86.RAX)
+			}
 		}
 	}
 

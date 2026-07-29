@@ -248,8 +248,8 @@ types_equal :: proc(x, y: ^Type) -> bool {
 		return true
 
 	case .Slice:
-		a := x.variant.(^Type_Array) or_return
-		b := y.variant.(^Type_Array) or_return
+		a := x.variant.(^Type_Slice) or_return
+		b := y.variant.(^Type_Slice) or_return
 		types_equal(a.elem, b.elem)  or_return
 		return true
 
