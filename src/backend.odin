@@ -242,31 +242,59 @@ gen_addr :: proc(e: ^Ast_Expr) {
 	case ^Ast_Selector_Expr:
 		gen_field_addr(v.lhs, v.rhs.entity)
 	case ^Ast_Index_Expr:
-		arr, ok := v.expr.type.variant.(^Type_Array)
-		if !ok {
-			gen_error(e.pos, "backend: indexing a non-array")
+
+		#partial switch arr in v.expr.type.variant {
+		case ^Type_Array:
+			elem := i64(type_size_of(arr.elem))
+			gen_aggregate_base_addr(v.expr) // base
+			push_const_int(0, e.pos)        // byte-offset accumulator
+
+			stride := elem
+
+			gen_expr(v.index)
+			pop_r(x86.RAX)              // index value
+			mov_ri(x86.RCX, stride)
+			emit(x86.inst_r_r(.IMUL, x86.RAX, x86.RCX))
+			pop_r(x86.RCX)             // accumulator
+			emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
+			push_r(x86.RAX)
+
+			pop_r(x86.RAX) // total offset
+			pop_r(x86.RCX) // base
+			emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
+			push_r(x86.RAX)
+		case ^Type_Slice:
+			// A slice value has the layout `record data: ^T; len: int end`, so
+			// the base of the elements is the pointer stored at offset 0 and the
+			// element stride is just size_of(T).
+			elem := i64(type_size_of(arr.elem))
+			gen_aggregate_base_addr(v.expr) // &slice (the descriptor)
+			pop_r(x86.RAX)                  // RAX = &slice
+			// data := (base+0)^
+			emit(x86.inst_r_m(.MOV, x86.RCX, x86.mem_base_only(x86.RAX), 8))
+			push_r(x86.RCX)          // base := data pointer
+			push_const_int(0, e.pos) // byte-offset accumulator
+
+			stride := elem
+
+			gen_expr(v.index)
+			pop_r(x86.RAX) // index value
+			mov_ri(x86.RCX, stride)
+			emit(x86.inst_r_r(.IMUL, x86.RAX, x86.RCX))
+			pop_r(x86.RCX)             // accumulator
+			emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
+			push_r(x86.RAX)
+
+			pop_r(x86.RAX) // total offset
+			pop_r(x86.RCX) // base (data pointer)
+			emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
+			push_r(x86.RAX)
+		case:
+			gen_error(e.pos, "backend: indexing on something that isn't an array or slice")
 			mov_ri(x86.RAX, 0)
 			push_r(x86.RAX)
-			return
 		}
-		elem := i64(type_size_of(arr.elem))
-		gen_aggregate_base_addr(v.expr) // base
-		push_const_int(0, e.pos)      // byte-offset accumulator
 
-		stride := elem * arr.count
-
-		gen_expr(v.index)
-		pop_r(x86.RAX)              // index value
-		mov_ri(x86.RCX, stride)
-		emit(x86.inst_r_r(.IMUL, x86.RAX, x86.RCX))
-		pop_r(x86.RCX)             // accumulator
-		emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
-		push_r(x86.RAX)
-
-		pop_r(x86.RAX)  // total offset
-		pop_r(x86.RCX)  // base
-		emit(x86.inst_r_r(.ADD, x86.RAX, x86.RCX))
-		push_r(x86.RAX)
 	case ^Ast_Bad_Expr,
 	     ^Ast_Literal,
 	     ^Ast_Unary_Expr,
@@ -623,7 +651,7 @@ gen_type_conv :: proc(v: ^Ast_Expr, target_kind: Type_Kind) -> (ok: bool) {
 	// so a type conversion behaves like every other call kind.
 	defer pop_r(x86.RAX)
 
-	if v.type.kind == target_kind  {
+	if v.type.kind == target_kind {
 		return true
 	}
 
@@ -947,7 +975,19 @@ gen_builtin :: proc(id: Builtin_Id, v: ^Ast_Call_Expr) {
 	case .size_of, .align_of:
 		panic("size_of/align_of should have been constant-folded by the frontend")
 
-	case .ord, .len:
+	case .len:
+		assert(len(v.parameters) == 1)
+		if arr := v.parameters[0]; arr.type.kind == .Slice {
+			gen_addr(arr)
+			pop_r(x86.RAX)
+			emit(x86.inst_r_m(.MOV, x86.RAX, x86.mem_base_disp(x86.RAX, 8), 8))
+			return
+		}
+
+		gen_error(v.pos, "backend: '%s' should have been constant-folded", builtin_strings[id])
+		mov_ri(x86.RAX, 0)
+
+	case .ord:
 		// Always constant-folded by the checker; unreachable in practice.
 		gen_error(v.pos, "backend: '%s' should have been constant-folded", builtin_strings[id])
 		mov_ri(x86.RAX, 0)
@@ -1182,10 +1222,32 @@ gen_stmts :: proc(seq: ^Ast_Stmt_Sequence) {
 	}
 }
 
+try_array_to_slice_assignment :: proc(lhs, rhs: ^Ast_Expr) -> bool {
+	slice := lhs.type.variant.(^Type_Slice) or_return
+	array := rhs.type.variant.(^Type_Array) or_return
+	types_equal(slice.elem, array.elem)     or_return
+	gen_addr(rhs)  // src address
+	gen_addr(lhs)  // dst address
+	pop_r(x86.RAX) // dst
+	pop_r(x86.RCX) // src
+
+	emit(x86.inst_m_r(.MOV, x86.mem_base_only(x86.RAX), 8, x86.RCX))
+
+	mov_ri(x86.RCX, array.count)
+	push_r(x86.RCX)
+	emit(x86.inst_m_r(.MOV, x86.mem_base_disp(x86.RAX, 8), 8, x86.RCX))
+
+	return true
+}
+
 gen_stmt :: proc(s: ^Ast_Stmt) {
 	switch v in s.variant {
 	case ^Ast_Assign_Stmt:
 		if is_aggregate(v.lhs.type) {
+			if try_array_to_slice_assignment(v.lhs, v.rhs) {
+				return
+			}
+
 			gen_expr(v.rhs)  // src address
 			gen_addr(v.lhs)  // dst address
 			gen_inline_mem_copy(type_size_of(v.lhs.type))

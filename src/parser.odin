@@ -451,19 +451,28 @@ parse_qual_ident_as_expr :: proc(p: ^Parser) -> ^Ast_Expr {
 
 
 
-// struct_type = array_type | record_type | pointer_type | proc_type | enum_type
+// struct_type = array_type | slice_type | record_type | pointer_type | proc_type | enum_type
 parse_struct_type :: proc(p: ^Parser) -> ^Ast_Structured_Type {
 	switch {
 	case allow_token(p, .Bracket_Open):
-		// array_type = "["" const_expr {"," const_expr} "]" type
-		array := ast_new(p.module, p.curr_token.pos, Ast_Array_Type)
-
-		array.count = parse_const_expr(p)
-
-		expect_token(p, .Bracket_Close)
-		elem := parse_type(p)
-		array.elem = elem
-		return array
+		// array_type = "["" const_expr "]" type
+		// slice_type = "["" "]" type
+		curr_pos := p.curr_token.pos
+		if !peek_token(p, .Bracket_Close) {
+			array := ast_new(p.module, curr_pos, Ast_Array_Type)
+			count := parse_const_expr(p)
+			expect_token(p, .Bracket_Close)
+			elem := parse_type(p)
+			array.elem = elem
+			array.count = count
+			return array
+		} else {
+			slice := ast_new(p.module, curr_pos, Ast_Slice_Type)
+			expect_token(p, .Bracket_Close)
+			elem := parse_type(p)
+			slice.elem = elem
+			return slice
+		}
 	case peek_token(p, .Record):
 		// record_type = "record" [field_list_sequence] "end"
 		type := ast_new(p.module, p.curr_token.pos, Ast_Record_Type)

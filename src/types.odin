@@ -116,7 +116,7 @@ is_pointer :: proc(t: ^Type) -> bool {
 
 @(require_results)
 is_aggregate :: proc(t: ^Type) -> bool {
-	return t != nil && (t.kind == .Record || t.kind == .Array)
+	return t != nil && (t.kind == .Record || t.kind == .Array || t.kind == .Slice)
 }
 
 

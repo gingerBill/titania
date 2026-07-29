@@ -121,7 +121,7 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 		if !ok {
 			error(c, s.name.pos, "'%s' has not been declared", name)
 		} else if !check_is_entity_addressable(c, entity) {
-			error(c, s.name.pos, "cannot assigned to '%s' as it is not addressable", name)
+			error(c, s.name.pos, "cannot assign to '%s' as it is not addressable", name)
 		}
 
 		lo, hi, by: Operand
@@ -147,18 +147,24 @@ check_stmt :: proc(c: ^Checker_Context, stmt: ^Ast_Stmt) {
 		check_expr(c, &lhs, s.lhs)
 		check_expr(c, &rhs, s.rhs)
 		if lhs.mode != .LValue {
-			error(c, s.lhs.pos, "cannot assigned to left-hand-side as it is not addressable", )
+			error(c, s.lhs.pos, "cannot assign to left-hand-side as it is not addressable", )
 		}
 		if rhs.mode == .Nil {
 			#partial switch lhs.type.kind {
-			case .Pointer, .Set:
+			case .Pointer, .Set, .Slice:
 				// okay
 			case:
 				error(c, lhs.expr.pos, "'nil' can only be assigned to pointers and set types, got %s", type_to_string(lhs.type))
 			}
-
 		} else if !types_equal(lhs.type, rhs.type) {
-			error(c, s.lhs.pos, "cannot assigned to left-hand-side as types do not match, %s vs %s", type_to_string(lhs.type), type_to_string(rhs.type))
+			if rhs.type.kind == .Array && lhs.type.kind == .Slice {
+				if types_equal(rhs.type.variant.(^Type_Array).elem,
+				               lhs.type.variant.(^Type_Slice).elem) {
+					return
+				}
+			}
+
+			error(c, s.lhs.pos, "cannot assign to left-hand-side as types do not match, %s vs %s", type_to_string(lhs.type), type_to_string(rhs.type))
 		}
 
 	case ^Ast_Return_Stmt:

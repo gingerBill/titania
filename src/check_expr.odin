@@ -386,17 +386,21 @@ check_expr_internal :: proc(c: ^Checker_Context, o: ^Operand, expr: ^Ast_Expr) {
 		check_expr(c, &i, e.index)
 		check_is_integer(c, &i)
 
-		if o.type.kind != .Array {
-			error(c, e.expr.pos, "cannot index a non-array type")
-			o.mode = .Invalid
-			o.type = t_invalid
-			o.value = nil
-		} else {
+		if o.type.kind == .Array {
 			if o.mode != .LValue {
 				error(c, e.expr.pos, "cannot index a non l-value")
 			}
 			o.mode = .LValue
 			o.type = o.type.variant.(^Type_Array).elem
+			o.value = nil
+		} else if o.type.kind == .Slice {
+			o.mode = .LValue
+			o.type = o.type.variant.(^Type_Slice).elem
+			o.value = nil
+		} else {
+			error(c, e.expr.pos, "cannot index a type that isn't an array or slice, got %s", type_to_string(o.type))
+			o.mode = .Invalid
+			o.type = t_invalid
 			o.value = nil
 		}
 
