@@ -19,7 +19,7 @@ contexts:
     - include: builtins
 
   keywords:
-    - match: '\b(and|begin|by|case|const|else|elseif|end|false|for|if|import|in|is|module|nil|not|or|proc|record|repeat|return|switch|then|to|true|type|until|using|var|while|xor)\b'
+    - match: '\b(and|begin|by|case|const|else|elseif|end|enum|false|for|if|import|in|is|module|nil|not|or|proc|record|repeat|return|switch|then|to|true|type|until|using|var|while|xor)\b'
       scope: keyword.control.titania
     - match: '\b(and|by|in|not|or|to)\b'
       scope: keyword.operator.titania

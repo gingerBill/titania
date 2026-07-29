@@ -29,21 +29,25 @@ type_decl  = ident ":" struct_type.
 var_decl   = ident_list ":" type.
 
 proc_decl = "proc" ident [formal_parameters] ";" proc_body.
-proc_body = decl_sequence ["begin" stmt_sequence] ["return" expr] "end".
+proc_body = decl_sequence ["begin" stmt_sequence] "end".
 
 formal_parameters = "(" [fp_section {";" fp_section} [";"]] ")".
 fp_section        = ["var"] ident_list ":" formal_type.
 formal_type       = ["[" "]"] qual_ident.
 
 type         = qual_ident | struct_type.
-struct_type  = array_type | record_type | pointer_type | proc_type.
+struct_type  = array_type | record_type | pointer_type | proc_type | enum_type.
 array_type   = "[" const_expr {"," const_expr} "]" type.
 record_type  = "record" [field_list_sequence] "end".
 pointer_type = "^" type.
 proc_type    = "proc" formal_parameters.
+enum_type    = "enum" [enum_field_sequence] "end".
 
 field_list_sequence = field_list {";" field_list} [";"].
 field_list          = ["using"] ident_list ":" type.
+
+enum_field_sequence = enum_field {";" enum_field} ";".
+enum_field          = ident ["=" const_expr].
 
 const_expr  = expr.
 expr        = simple_expr [relation simple_expr].
@@ -70,7 +74,7 @@ qual_ident = ident ["." ident].
 
 stmt_sequence = stmt {";" stmt} [";"].
 stmt = [assignment | proc_call | if_stmt | switch_stmt |
-        while_stmt | repeat_stmt | for_stmt].
+        while_stmt | repeat_stmt | for_stmt | return_stmt ].
 
 assignment = designator ":=" expr.
 proc_call  = designator.              /* a designator whose final selector is a call */
@@ -92,6 +96,7 @@ while_stmt = "while" expr "then" stmt_sequence
 repeat_stmt = "repeat" stmt_sequence "until" expr.
 for_stmt    = "for" ident ":=" expr "to" expr ["by" const_expr] "then" stmt_sequence "end".
 
+return_stmt = "return".
 
 add_operator = "+" | "-" | "xor" | "or".
 mul_operator = "*" | "/" | "%"   | "and".
