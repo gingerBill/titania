@@ -17,12 +17,12 @@ module = "module" ident ";" [import_list] decl_sequence
          ["begin" stmt_sequence] "end" [";"].
 
 import_list = "import" import_decl {"," import_decl} ";".
-import_decl = ident [":=" ident].             /* local_name := actual_module */
+import_decl = ident [":=" ident].
 
 decl_sequence = { ["const" {const_decl ";"}]
                   ["type"  {type_decl  ";"}]
                   ["var"   {var_decl   ";"}]
-                  [{proc_decl          ";"}] }.
+                  [{proc_decl           ";"}] }.
 
 const_decl = ident "=" const_expr.
 type_decl  = ident ":" struct_type.
@@ -37,7 +37,7 @@ formal_type       = ["[" "]"] qual_ident.
 
 type         = qual_ident | struct_type.
 struct_type  = array_type | slice_type | record_type | pointer_type | proc_type | enum_type.
-array_type   = "[" [const_expr "]" type.
+array_type   = "[" const_expr "]" type.
 slice_type   = "[" "]" type.
 record_type  = "record" [field_list_sequence] "end".
 pointer_type = "^" type.
@@ -61,17 +61,17 @@ factor      = integer | real | string
             | "(" expr ")" | "not" factor | designator.
 
 set_expr     = "{" [set_element {"," set_element} [","]] "}".
-range        = "..<" | "..="
+range        = "..<" | "..=".
 set_element  = expr [range expr].
 
 designator = qual_ident {selector}.
 selector   = "." ident
            | "[" expr_list "]"
-           | "^"
+           | "^",
            | "(" [expr_list] ")".
 
 ident_list = ident {"," ident}.
-expr_list  = expr {"," expr}.
+expr_list  = expr  {"," expr}.
 qual_ident = ident ["." ident].
 
 stmt_sequence = stmt {";" stmt} [";"].
@@ -79,7 +79,7 @@ stmt = [assignment | proc_call | if_stmt | switch_stmt |
         while_stmt | repeat_stmt | for_stmt | return_stmt ].
 
 assignment = designator ":=" expr.
-proc_call  = designator.              /* a designator whose final selector is a call */
+proc_call  = designator.
 
 if_stmt = "if" expr "then" stmt_sequence
           {"elseif" expr "then" stmt_sequence}
@@ -218,3 +218,8 @@ pack(var r: real; n: int)         - r := r * 2^n          (scale by a power of t
 unpack(var r: real; var n: int)   - split r into a mantissa and exponent so that
                                      r := mantissa (1.0 <= r < 2.0) and n := exponent
 ```
+
+
+## Syntax Diagram
+
+![Syntax Diagram](syntax-diagram.png)
