@@ -533,7 +533,7 @@ gen_load_entity :: proc(e: ^Entity, pos: Pos) {
 		// Using a procedure as a value yields its code address (a function
 		// pointer): a RIP-relative LEA of the procedure's label.
 		if id, ok := g.proc_labels[e]; ok {
-			emit(x86.inst_r_m(.LEA, x86.RAX, x86.mem_make(x86.MEM_BASE_RIP, x86.NONE, 1, i32(id), x86.NONE), 8))
+			emit(x86.inst_r_m(.LEA, x86.RAX, x86.mem_rip_label(id), 8))
 		} else {
 			gen_error(pos, "backend: procedure '%s' has no address", e.name)
 			mov_ri(x86.RAX, 0)
