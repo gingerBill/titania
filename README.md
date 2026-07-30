@@ -36,13 +36,13 @@ formal_parameters = "(" [fp_section {";" fp_section} [";"]] ")".
 fp_section        = ["var"] ident_list ":" formal_type.
 formal_type       = ["[" "]"] qual_ident.
 
-type         = qual_ident | struct_type.
-struct_type  = array_or_slice_type | slice_type | record_type | pointer_type | proc_type | enum_type.
+type                = qual_ident | struct_type.
+struct_type         = array_or_slice_type | slice_type | record_type | pointer_type | proc_type | enum_type.
 array_or_slice_type = "[" (const_expr) "]" type.
-record_type  = "record" [field_list_sequence] "end".
-pointer_type = "^" type.
-proc_type    = "proc" formal_parameters.
-enum_type    = "enum" [enum_field_sequence] "end".
+record_type         = "record" [field_list_sequence] "end".
+pointer_type        = "^" type.
+proc_type           = "proc" formal_parameters.
+enum_type           = "enum" [enum_field_sequence] "end".
 
 field_list_sequence = field_list {";" field_list} [";"].
 field_list          = ["using"] ident_list ":" type.
