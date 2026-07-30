@@ -162,7 +162,7 @@ type_size_of :: proc(t: ^Type) -> i64 {
 		return sz
 	case .Slice:
 		// ptr + len
-		return 8 * 8
+		return 8 + 8
 	case .Record:
 		record := t.variant.(^Type_Record)
 
