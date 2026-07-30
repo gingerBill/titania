@@ -19,10 +19,11 @@ module = "module" ident ";" [import_list] decl_sequence
 import_list = "import" import_decl {"," import_decl} ";".
 import_decl = ident [":=" ident].
 
-decl_sequence = { ["const" {const_decl ";"}]
-                  ["type"  {type_decl  ";"}]
-                  ["var"   {var_decl   ";"}]
-                  [{proc_decl           ";"}] }.
+decl_sequence = { const_block | type_block | var_block | proc_decl ";" }.
+
+const_block = "const" {const_decl ";"}.
+type_block  = "type"  {type_decl  ";"}.
+var_block   = "var"   {var_decl   ";"}.
 
 const_decl = ident "=" const_expr.
 type_decl  = ident ":" struct_type.
@@ -36,9 +37,8 @@ fp_section        = ["var"] ident_list ":" formal_type.
 formal_type       = ["[" "]"] qual_ident.
 
 type         = qual_ident | struct_type.
-struct_type  = array_type | slice_type | record_type | pointer_type | proc_type | enum_type.
-array_type   = "[" const_expr "]" type.
-slice_type   = "[" "]" type.
+struct_type  = array_or_slice_type | slice_type | record_type | pointer_type | proc_type | enum_type.
+array_or_slice_type = "[" (const_expr) "]" type.
 record_type  = "record" [field_list_sequence] "end".
 pointer_type = "^" type.
 proc_type    = "proc" formal_parameters.
@@ -53,12 +53,12 @@ enum_field          = ident ["=" const_expr].
 const_expr  = expr.
 expr        = simple_expr [relation simple_expr].
 simple_expr = unary_expr {add_operator unary_expr}.
-unary_expr  = ["+" | "-"] term.
+unary_expr  = ["+" | "-" | "not"] term.
 term        = factor {mul_operator factor}.
 factor      = integer | real | string
-            | nil | true | false
+            | "nil" | "true" | "false"
             | set_expr
-            | "(" expr ")" | "not" factor | designator.
+            | "(" expr ")" | designator.
 
 set_expr     = "{" [set_element {"," set_element} [","]] "}".
 range        = "..<" | "..=".
@@ -67,7 +67,7 @@ set_element  = expr [range expr].
 designator = qual_ident {selector}.
 selector   = "." ident
            | "[" expr_list "]"
-           | "^",
+           | "^"
            | "(" [expr_list] ")".
 
 ident_list = ident {"," ident}.
@@ -103,6 +103,13 @@ return_stmt = "return".
 add_operator = "+" | "-" | "xor" | "or".
 mul_operator = "*" | "/" | "%"   | "and".
 relation     = "=" | "<>" | "<" | "<=" | ">" | ">=" | "in".
+
+letter  = "A"…"Z" | "a"…"z" | "_".
+digit   = "0"…"9",
+ident   = letter {letter | digit}.
+string  = '"' { char | escape_seq } '"'.
+integer = digit { digit }.
+real    = integer "." [integer] ["e" ["+" | "-"] integer].
 ```
 
 Notes:
@@ -153,13 +160,13 @@ When a newline is seen after the following token kind, a semicolon is inserted, 
 Note: These will be added to as the compiler develops.
 
 Notation:
-        * `x, y` are values
-        * `s` a string
-        * `i, n` integers
-        * `r` a real
-        * `p` a pointer
-        * `set_var` a `set` variable
-        * `T` a type.
+  * `x, y` are values
+  * `s` a string
+  * `i, n` integers
+  * `r` a real
+  * `p` a pointer
+  * `set_var` a `set` variable
+  * `T` a type.
 
 Parameters written `var` must be addressable (a variable, field, indexed element, or `p^`).
 
