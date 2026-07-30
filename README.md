@@ -37,7 +37,7 @@ fp_section        = ["var"] ident_list ":" formal_type.
 formal_type       = ["[" "]"] qual_ident.
 
 type                = qual_ident | struct_type.
-struct_type         = array_or_slice_type | slice_type | record_type | pointer_type | proc_type | enum_type.
+struct_type         = array_or_slice_type | record_type | pointer_type | proc_type | enum_type.
 array_or_slice_type = "[" (const_expr) "]" type.
 record_type         = "record" [field_list_sequence] "end".
 pointer_type        = "^" type.
@@ -105,7 +105,7 @@ mul_operator = "*" | "/" | "%"   | "and".
 relation     = "=" | "<>" | "<" | "<=" | ">" | ">=" | "in".
 
 letter  = "A"…"Z" | "a"…"z" | "_".
-digit   = "0"…"9",
+digit   = "0"…"9".
 ident   = letter {letter | digit}.
 string  = '"' { char | escape_seq } '"'.
 integer = digit { digit }.
