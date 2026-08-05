@@ -9,8 +9,9 @@ Meaning behind the name:
  * <https://en.wikipedia.org/wiki/Titania_(A_Midsummer_Night%27s_Dream)>
  * This is just a codename, and probably not final for this teaching language
 
-## Grammar
+This design of the language has flaws in it on purpose. They exist there as a way to teach language design along side compile construction.
 
+## Grammar
 
 ```
 module = "module" ident ";" [import_list] decl_sequence
