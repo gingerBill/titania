@@ -5,8 +5,7 @@ Based on the [Oberon-07](https://people.inf.ethz.ch/wirth/Oberon/Oberon07.Report
 This is designed to be a language to teach compiler development with.
 
 Meaning behind the name:
- * Titania is the wife of Oberon (Fairy King) in Shakespeare's _A Midsummer Night's Dream_
- * <https://en.wikipedia.org/wiki/Titania_(A_Midsummer_Night%27s_Dream)>
+ * Titania is the wife of Oberon (Fairy King) in Shakespeare's [_A Midsummer Night's Dream_](https://en.wikipedia.org/wiki/Titania_(A_Midsummer_Night%27s_Dream))
  * This is just a codename, and probably not final for this teaching language
 
 This design of the language has flaws in it on purpose. They exist there as a way to teach language design along side compile construction.
